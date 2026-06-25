@@ -67,6 +67,8 @@
     <string name="combine_app_icon_and_album_art_subtitle">在專輯封面上顯示應用程式圖示</string>
     <string name="show_album_name_title">顯示專輯名稱</string>
     <string name="show_album_name_subtitle">在演出者行中顯示專輯名稱</string>
+    <string name="show_next_lyric_line_title">顯示下一句歌詞</string>
+    <string name="show_next_lyric_line_subtitle">在演出者行顯示下一句歌詞</string>
 
     <!-- Main Screen -->
     <string name="app_title">AA Media Mate</string>

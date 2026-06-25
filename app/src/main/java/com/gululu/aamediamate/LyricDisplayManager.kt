@@ -74,15 +74,15 @@ class LyricDisplayManager(private val context: Context) {
 
                     if (lyrics.isEmpty()) {
                         Log.d("MediaBridge", "🚫 Lyrics not found: ${info.title}")
-                        updateLyricLine(mediaSession, info, "") // Clear the displayed lyric
+                        updateLyricLine(mediaSession, info, "", null) // Clear the displayed lyric
                         return@launch
                     }
 
                     val currentPosition = MediaControllerManager.getActiveController(context)?.playbackState?.position ?: info.position
                     val offsetMs = SettingsManager.getLyricsTimingOffset(context).toLong()
 
-                    LyricSyncEngine.start(lyrics, currentPosition, offsetMs) { line ->
-                        updateLyricLine(mediaSession, info, line)
+                    LyricSyncEngine.start(lyrics, currentPosition, offsetMs) { line, nextLine ->
+                        updateLyricLine(mediaSession, info, line, nextLine)
                     }
                 }
             }
@@ -106,7 +106,7 @@ class LyricDisplayManager(private val context: Context) {
         }
     }
 
-    private fun updateLyricLine(mediaSession: MediaSessionCompat, originalInfo: MediaInfo, lyricLine: String) {
+    private fun updateLyricLine(mediaSession: MediaSessionCompat, originalInfo: MediaInfo, lyricLine: String, nextLyricLine: String?) {
         val metadataBuilder = MediaMetadataCompat.Builder()
             .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, originalInfo.duration)
 
@@ -114,21 +114,21 @@ class LyricDisplayManager(private val context: Context) {
         metadataBuilder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "From ${originalInfo.appName}")
 
         val showAlbumName = SettingsManager.getShowAlbumName(context)
+        val showNextLyricLine = SettingsManager.getShowNextLyricLine(context)
 
         if (lyricLine.isNotBlank()) {
             // When a lyric is displayed, use the lyric as the title
             metadataBuilder.putString(MediaMetadataCompat.METADATA_KEY_TITLE, lyricLine)
 
-            // Consolidate song title, artist, and album into the ARTIST field
-            val songInfoParts = mutableListOf<String>()
-            originalInfo.title.takeIf { it.isNotBlank() }?.let { songInfoParts.add(it) }
-            originalInfo.artist.takeIf { it.isNotBlank() }?.let { songInfoParts.add(it) }
-            if (showAlbumName) {
-                originalInfo.album.takeIf { it.isNotBlank() }?.let { songInfoParts.add(it) }
+            val artistText = if (showNextLyricLine) {
+                nextLyricLine?.takeIf { it.isNotBlank() } ?: buildSongInfoText(originalInfo, showAlbumName)
+            } else {
+                buildSongInfoText(originalInfo, showAlbumName)
             }
-            
-            val songInfo = songInfoParts.joinToString(" - ")
-            metadataBuilder.putString(MediaMetadataCompat.METADATA_KEY_ARTIST, songInfo)
+
+            if (artistText.isNotBlank()) {
+                metadataBuilder.putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artistText)
+            }
 
         } else {
             // When no lyric is displayed, restore the original media info formatted correctly
@@ -153,5 +153,15 @@ class LyricDisplayManager(private val context: Context) {
         }
 
         mediaSession.setMetadata(metadataBuilder.build())
+    }
+
+    private fun buildSongInfoText(originalInfo: MediaInfo, showAlbumName: Boolean): String {
+        val songInfoParts = mutableListOf<String>()
+        originalInfo.title.takeIf { it.isNotBlank() }?.let { songInfoParts.add(it) }
+        originalInfo.artist.takeIf { it.isNotBlank() }?.let { songInfoParts.add(it) }
+        if (showAlbumName) {
+            originalInfo.album.takeIf { it.isNotBlank() }?.let { songInfoParts.add(it) }
+        }
+        return songInfoParts.joinToString(" - ")
     }
 }
