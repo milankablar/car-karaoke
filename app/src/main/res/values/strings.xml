@@ -81,6 +81,8 @@
     <string name="combine_app_icon_and_album_art_subtitle">Show app icon on album art</string>
     <string name="show_album_name_title">Show Album Name</string>
     <string name="show_album_name_subtitle">Show album name in artist line</string>
+    <string name="show_next_lyric_line_title">Show Next Lyric Line</string>
+    <string name="show_next_lyric_line_subtitle">Display the upcoming lyric in the artist line</string>
 
     <!-- Main Screen -->
     <string name="app_title">AA Media Mate</string>

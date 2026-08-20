@@ -24,6 +24,7 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var combineAppIconAndAlbumArt by remember { mutableStateOf(SettingsManager.getCombineAppIconAndAlbumArt(context)) }
     var showAlbumName by remember { mutableStateOf(SettingsManager.getShowAlbumName(context)) }
+    var showNextLyricLine by remember { mutableStateOf(SettingsManager.getShowNextLyricLine(context)) }
 
     Scaffold(
         topBar = {
@@ -97,6 +98,34 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
                     onCheckedChange = {
                         showAlbumName = it
                         SettingsManager.setShowAlbumName(context, it)
+                    }
+                )
+            }
+
+            HorizontalDivider()
+
+            // Show Next Lyric Line Toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(id = R.string.show_next_lyric_line_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = stringResource(id = R.string.show_next_lyric_line_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = showNextLyricLine,
+                    onCheckedChange = {
+                        showNextLyricLine = it
+                        SettingsManager.setShowNextLyricLine(context, it)
                     }
                 )
             }

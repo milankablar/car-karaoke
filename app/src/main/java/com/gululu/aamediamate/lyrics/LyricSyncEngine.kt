@@ -6,7 +6,7 @@ import android.util.Log
 object LyricSyncEngine {
     private var currentJob: Job? = null
 
-    fun start(lyrics: List<LyricLine>, startPositionMs: Long, offsetMs: Long = 0L, onLineChanged: (String) -> Unit) {
+    fun start(lyrics: List<LyricLine>, startPositionMs: Long, offsetMs: Long = 0L, onLineChanged: (String, String?) -> Unit) {
         currentJob?.cancel()
 
         currentJob = CoroutineScope(Dispatchers.Default).launch {
@@ -33,7 +33,7 @@ object LyricSyncEngine {
                     Log.d("MediaBridge", "🎤 Playing catch-up for lyric line index $i")
                 }
                 
-                onLineChanged(line.text)
+                onLineChanged(line.text, lyrics.getOrNull(i + 1)?.text?.takeIf { nextLine -> nextLine.isNotBlank() })
                 lastLineIndex = i
             }
             
