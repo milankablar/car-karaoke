@@ -37,7 +37,7 @@ object MediaBridgeSessionManager {
         DiagnosticLogger.info(appContext, DiagnosticModule.MEDIA, "MediaSession initialized")
     }
 
-    fun updateFromMediaInfo(info: MediaInfo?) {
+    fun updateFromMediaInfo(info: MediaInfo?, forceLyricsResync: Boolean = false) {
         currentMediaInfo = info
         val session = mediaSession ?: return
         val ctx = context ?: return
@@ -75,6 +75,9 @@ object MediaBridgeSessionManager {
         )
 
         // Restore original metadata before showing lyrics
+        if (forceLyricsResync) {
+            lyricDisplayManager?.stop()
+        }
         mediaStateUpdater?.update(session, info)
         lyricDisplayManager?.start(session, info)
 
@@ -85,6 +88,14 @@ object MediaBridgeSessionManager {
     fun getSessionToken(): MediaSessionCompat.Token? = mediaSession?.sessionToken
 
     fun getCurrentMediaPackage(): String? = currentMediaInfo?.appPackageName
+
+    /** Rebuilds the active bridged session after a display preference changes. */
+    fun refreshCurrentSession(forceLyricsResync: Boolean = false) {
+        val ctx = context ?: return
+        val refreshedInfo = MediaInformationRetriever.refreshCurrentMediaInfo(ctx) ?: currentMediaInfo ?: return
+
+        updateFromMediaInfo(refreshedInfo, forceLyricsResync)
+    }
 
     fun setMediaInfoListener(listener: (MediaInfo?) -> Unit) {
         mediaInfoListener = listener

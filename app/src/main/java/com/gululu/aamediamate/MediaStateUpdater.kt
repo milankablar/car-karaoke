@@ -34,7 +34,9 @@ class MediaStateUpdater(private val context: Context) {
             metadataBuilder.putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artistText)
         }
 
-        metadataBuilder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "From ${info.appName}")
+        if (SettingsManager.getShowSourceApp(context)) {
+            metadataBuilder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "From ${info.appName}")
+        }
 
         info.albumArt?.let {
             metadataBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_ART, it)

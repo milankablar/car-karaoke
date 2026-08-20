@@ -2,6 +2,8 @@ package com.gululu.aamediamate.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -11,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.gululu.aamediamate.MediaBridgeSessionManager
 import com.gululu.aamediamate.R
 import com.gululu.aamediamate.SettingsManager
 
@@ -25,6 +28,7 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
     var combineAppIconAndAlbumArt by remember { mutableStateOf(SettingsManager.getCombineAppIconAndAlbumArt(context)) }
     var showAlbumName by remember { mutableStateOf(SettingsManager.getShowAlbumName(context)) }
     var showNextLyricLine by remember { mutableStateOf(SettingsManager.getShowNextLyricLine(context)) }
+    var showSourceApp by remember { mutableStateOf(SettingsManager.getShowSourceApp(context)) }
 
     Scaffold(
         topBar = {
@@ -45,7 +49,8 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp),
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Combine App Icon & Album Art Toggle
@@ -70,6 +75,7 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
                     onCheckedChange = {
                         combineAppIconAndAlbumArt = it
                         SettingsManager.setCombineAppIconAndAlbumArt(context, it)
+                        MediaBridgeSessionManager.refreshCurrentSession(forceLyricsResync = true)
                     }
                 )
             }
@@ -98,6 +104,36 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
                     onCheckedChange = {
                         showAlbumName = it
                         SettingsManager.setShowAlbumName(context, it)
+                        MediaBridgeSessionManager.refreshCurrentSession(forceLyricsResync = true)
+                    }
+                )
+            }
+
+            HorizontalDivider()
+
+            // Show Source App Toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(id = R.string.show_source_app_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = stringResource(id = R.string.show_source_app_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = showSourceApp,
+                    onCheckedChange = {
+                        showSourceApp = it
+                        SettingsManager.setShowSourceApp(context, it)
+                        MediaBridgeSessionManager.refreshCurrentSession(forceLyricsResync = true)
                     }
                 )
             }
@@ -126,6 +162,7 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
                     onCheckedChange = {
                         showNextLyricLine = it
                         SettingsManager.setShowNextLyricLine(context, it)
+                        MediaBridgeSessionManager.refreshCurrentSession(forceLyricsResync = true)
                     }
                 )
             }

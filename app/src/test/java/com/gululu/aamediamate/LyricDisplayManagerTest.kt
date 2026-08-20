@@ -11,6 +11,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,25 +23,29 @@ class LyricDisplayManagerTest {
 
     private val context = mockk<Context>(relaxed = true)
     private val mediaSession = mockk<MediaSessionCompat>(relaxed = true)
+    private lateinit var prefs: SharedPreferences
     private lateinit var manager: LyricDisplayManager
 
     @Before
     fun setUp() {
-        val prefs = mockk<SharedPreferences>(relaxed = true)
+        prefs = mockk(relaxed = true)
         every { context.getSharedPreferences(any(), any()) } returns prefs
         every { prefs.getBoolean("show_album_name", true) } returns true
+        every { prefs.getBoolean("show_source_app", true) } returns true
+        every { prefs.getBoolean("show_next_lyric_line", false) } returns false
         manager = LyricDisplayManager(context)
     }
 
-    private fun invokeUpdateLyricLine(info: MediaInfo, lyricLine: String) {
+    private fun invokeUpdateLyricLine(info: MediaInfo, lyricLine: String, nextLyricLine: String? = null) {
         val method: Method = LyricDisplayManager::class.java.getDeclaredMethod(
             "updateLyricLine",
             MediaSessionCompat::class.java,
             MediaInfo::class.java,
+            String::class.java,
             String::class.java
         )
         method.isAccessible = true
-        method.invoke(manager, mediaSession, info, lyricLine)
+        method.invoke(manager, mediaSession, info, lyricLine, nextLyricLine)
     }
 
     @Test
@@ -163,5 +168,28 @@ class LyricDisplayManagerTest {
         val metadata = slot.captured
         assertEquals(albumArt, metadata.getBitmap(MediaMetadataCompat.METADATA_KEY_ART))
         assertEquals(albumArt, metadata.getBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART))
+    }
+
+    @Test
+    fun `updateLyricLine omits source app when disabled`() {
+        every { prefs.getBoolean("show_source_app", true) } returns false
+        val mediaInfo = MediaInfo(
+            title = "Song Title",
+            artist = "Artist Name",
+            album = "Album Name",
+            appName = "MusicApp",
+            appPackageName = "com.music.app",
+            duration = 1000L,
+            isPlaying = true,
+            position = 0L,
+            albumArt = null,
+            appIcon = null
+        )
+
+        invokeUpdateLyricLine(mediaInfo, "Singing lyrics...")
+
+        val slot = slot<MediaMetadataCompat>()
+        verify { mediaSession.setMetadata(capture(slot)) }
+        assertNull(slot.captured.getString(MediaMetadataCompat.METADATA_KEY_ALBUM))
     }
 }

@@ -16,7 +16,7 @@ class LyricSyncEngineTest {
         val lyrics = listOf(LyricLine(0.01f, "First line"), LyricLine(5.0f, "Second line"))
         val lines = mutableListOf<String>()
 
-        LyricSyncEngine.start(lyrics, 0L, 0L) { lines.add(it) }
+        LyricSyncEngine.start(lyrics, 0L, 0L) { line, _ -> lines.add(line) }
 
         Thread.sleep(200)
         assertTrue(lines.contains("First line"))
@@ -31,7 +31,7 @@ class LyricSyncEngineTest {
         )
         val lines = mutableListOf<String>()
 
-        LyricSyncEngine.start(lyrics, 15L, 0L) { lines.add(it) }
+        LyricSyncEngine.start(lyrics, 15L, 0L) { line, _ -> lines.add(line) }
 
         Thread.sleep(200)
         assertTrue(lines.contains("Second line"))
@@ -40,7 +40,7 @@ class LyricSyncEngineTest {
     @Test
     fun `stop should cancel the running job`() = runTest {
         val lyrics = listOf(LyricLine(0.0f, "Line 1"), LyricLine(10.0f, "Line 2"))
-        LyricSyncEngine.start(lyrics, 0L, 0L) { }
+        LyricSyncEngine.start(lyrics, 0L, 0L) { _, _ -> }
         LyricSyncEngine.stop()
         // How to assert that the job is cancelled is a bit tricky in this setup
         // but we can at least ensure it doesn't crash.

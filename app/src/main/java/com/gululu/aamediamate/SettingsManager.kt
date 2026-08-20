@@ -27,6 +27,7 @@ object SettingsManager {
     private const val KEY_COMBINE_APP_ICON_AND_ALBUM_ART = "combine_app_icon_and_album_art"
     private const val KEY_SHOW_ALBUM_NAME = "show_album_name"
     private const val KEY_SHOW_NEXT_LYRIC_LINE = "show_next_lyric_line"
+    private const val KEY_SHOW_SOURCE_APP = "show_source_app"
     private const val KEY_LYRICS_TIMING_OFFSET = "lyrics_timing_offset"
 
     private fun getPrefs(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -46,6 +47,7 @@ object SettingsManager {
             put(KEY_COMBINE_APP_ICON_AND_ALBUM_ART, getCombineAppIconAndAlbumArt(context))
             put(KEY_SHOW_ALBUM_NAME, getShowAlbumName(context))
             put(KEY_SHOW_NEXT_LYRIC_LINE, getShowNextLyricLine(context))
+            put(KEY_SHOW_SOURCE_APP, getShowSourceApp(context))
             put(KEY_LYRICS_TIMING_OFFSET, getLyricsTimingOffset(context))
 
             if (includeSecrets) {
@@ -70,6 +72,7 @@ object SettingsManager {
             }
             settings.optBooleanOrNull(KEY_SHOW_ALBUM_NAME)?.let { putBoolean(KEY_SHOW_ALBUM_NAME, it) }
             settings.optBooleanOrNull(KEY_SHOW_NEXT_LYRIC_LINE)?.let { putBoolean(KEY_SHOW_NEXT_LYRIC_LINE, it) }
+            settings.optBooleanOrNull(KEY_SHOW_SOURCE_APP)?.let { putBoolean(KEY_SHOW_SOURCE_APP, it) }
             settings.optIntOrNull(KEY_LYRICS_TIMING_OFFSET)?.let { putInt(KEY_LYRICS_TIMING_OFFSET, it) }
             settings.optStringOrNull(KEY_API_KEY)?.let { putString(KEY_API_KEY, it) }
             settings.optStringOrNull(KEY_LRC_API_AUTH_TOKEN)?.let { putString(KEY_LRC_API_AUTH_TOKEN, it) }
@@ -95,6 +98,13 @@ object SettingsManager {
 
     fun setShowNextLyricLine(context: Context, enabled: Boolean) {
         getPrefs(context).edit() { putBoolean(KEY_SHOW_NEXT_LYRIC_LINE, enabled) }
+    }
+
+    fun getShowSourceApp(context: Context): Boolean =
+        getPrefs(context).getBoolean(KEY_SHOW_SOURCE_APP, true)
+
+    fun setShowSourceApp(context: Context, enabled: Boolean) {
+        getPrefs(context).edit() { putBoolean(KEY_SHOW_SOURCE_APP, enabled) }
     }
 
     fun getLyricsTimingOffset(context: Context): Int =

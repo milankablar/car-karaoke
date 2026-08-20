@@ -84,6 +84,8 @@
     <string name="show_album_name_subtitle">在演出者行中顯示專輯名稱</string>
     <string name="show_next_lyric_line_title">顯示下一句歌詞</string>
     <string name="show_next_lyric_line_subtitle">在演出者行顯示下一句歌詞</string>
+    <string name="show_source_app_title">顯示來源應用程式</string>
+    <string name="show_source_app_subtitle">在車載螢幕上顯示「From [應用程式]」</string>
 
     <!-- Main Screen -->
     <string name="app_title">AA Media Mate</string>

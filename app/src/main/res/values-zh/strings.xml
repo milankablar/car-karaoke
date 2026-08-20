@@ -83,6 +83,8 @@
     <string name="show_album_name_subtitle">在艺术家行中显示专辑名称</string>
     <string name="show_next_lyric_line_title">显示下一句歌词</string>
     <string name="show_next_lyric_line_subtitle">在艺术家行显示下一句歌词</string>
+    <string name="show_source_app_title">显示来源应用</string>
+    <string name="show_source_app_subtitle">在车载屏幕上显示“From [应用]”</string>
 
     <!-- Main Screen -->
     <string name="app_title">AA Media Mate</string>

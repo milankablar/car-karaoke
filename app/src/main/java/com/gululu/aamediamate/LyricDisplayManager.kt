@@ -148,8 +148,9 @@ class LyricDisplayManager(private val context: Context) {
         val metadataBuilder = MediaMetadataCompat.Builder()
             .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, originalInfo.duration)
 
-        // Always set the album to "From [App Name]"
-        metadataBuilder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "From ${originalInfo.appName}")
+        if (SettingsManager.getShowSourceApp(context)) {
+            metadataBuilder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "From ${originalInfo.appName}")
+        }
 
         val showAlbumName = SettingsManager.getShowAlbumName(context)
         val showNextLyricLine = SettingsManager.getShowNextLyricLine(context)
