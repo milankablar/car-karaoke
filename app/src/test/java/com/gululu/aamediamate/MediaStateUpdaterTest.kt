@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import com.gululu.aamediamate.models.MediaInfo
 import io.mockk.every
 import io.mockk.mockk
@@ -53,20 +54,31 @@ class MediaStateUpdaterTest {
         assertNull(metadata.getString(MediaMetadataCompat.METADATA_KEY_ALBUM))
     }
 
+    @Test
+    fun `update writes zero playback speed when paused`() {
+        updater.update(mediaSession, mediaInfo(isPlaying = false))
+
+        val playbackState = slot<PlaybackStateCompat>()
+        verify { mediaSession.setPlaybackState(capture(playbackState)) }
+
+        assertEquals(PlaybackStateCompat.STATE_PAUSED, playbackState.captured.state)
+        assertEquals(0.0f, playbackState.captured.playbackSpeed, 0.0f)
+    }
+
     private fun capturedMetadata(): MediaMetadataCompat {
         val metadata = slot<MediaMetadataCompat>()
         verify { mediaSession.setMetadata(capture(metadata)) }
         return metadata.captured
     }
 
-    private fun mediaInfo() = MediaInfo(
+    private fun mediaInfo(isPlaying: Boolean = true) = MediaInfo(
         title = "Song Title",
         artist = "Artist Name",
         album = "Album Name",
         appName = "MusicApp",
         appPackageName = "com.music.app",
         duration = 1000L,
-        isPlaying = true,
+        isPlaying = isPlaying,
         position = 0L,
         albumArt = null,
         appIcon = null

@@ -1,9 +1,9 @@
 package com.gululu.aamediamate
 
-import android.content.ComponentName
 import android.content.Context
 import android.media.MediaMetadata
 import android.media.session.PlaybackState
+import android.os.SystemClock
 import android.util.Log
 import com.gululu.aamediamate.models.MediaInfo
 import android.graphics.*
@@ -15,6 +15,7 @@ import androidx.core.graphics.scale
 import androidx.core.graphics.createBitmap
 import com.gululu.aamediamate.diagnostics.DiagnosticLogger
 import com.gululu.aamediamate.diagnostics.DiagnosticModule
+import kotlin.math.roundToLong
 
 object MediaInformationRetriever {
     private val iconMap = mutableMapOf<String, Bitmap?>()
@@ -42,8 +43,8 @@ object MediaInformationRetriever {
                 title = metadata.getString(MediaMetadata.METADATA_KEY_TITLE) ?: context.getString(R.string.unknown_title),
                 artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)?.takeIf { it.isNotBlank() } ?: "",
                 album = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM)?.takeIf { it.isNotBlank() } ?: "",
-                duration = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L,
-                position = state.position,
+                duration = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION),
+                position = getCurrentPositionMs(state),
                 isPlaying = state.state == PlaybackState.STATE_PLAYING,
                 albumArt = albumArt
             )
@@ -96,7 +97,7 @@ object MediaInformationRetriever {
             artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)?.takeIf { it.isNotBlank() } ?: "",
             album = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM)?.takeIf { it.isNotBlank() } ?: "",
             duration = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION),
-            position = state.position,
+            position = getCurrentPositionMs(state),
             isPlaying = state.state == PlaybackState.STATE_PLAYING,
             albumArt = albumArt
         )
@@ -105,6 +106,25 @@ object MediaInformationRetriever {
     private fun getArtwork(metadata: MediaMetadata): Bitmap? =
         metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+
+    internal fun getCurrentPositionMs(
+        state: PlaybackState,
+        nowElapsedRealtimeMs: Long = SystemClock.elapsedRealtime()
+    ): Long {
+        val basePosition = state.position
+        if (basePosition == PlaybackState.PLAYBACK_POSITION_UNKNOWN) return 0L
+        if (state.state != PlaybackState.STATE_PLAYING || state.playbackSpeed <= 0f) {
+            return basePosition.coerceAtLeast(0L)
+        }
+
+        val lastUpdateTime = state.lastPositionUpdateTime
+        if (lastUpdateTime <= 0L) return basePosition.coerceAtLeast(0L)
+
+        val elapsedMs = (nowElapsedRealtimeMs - lastUpdateTime).coerceAtLeast(0L)
+        return (basePosition + elapsedMs * state.playbackSpeed.toDouble())
+            .roundToLong()
+            .coerceAtLeast(0L)
+    }
 
     private fun composeAlbumArtWithAppIconFixed(
         albumArt: Bitmap,

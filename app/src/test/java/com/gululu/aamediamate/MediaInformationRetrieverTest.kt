@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.media.session.PlaybackState
 import com.gululu.aamediamate.R
 import io.mockk.every
 import io.mockk.mockk
@@ -75,5 +76,47 @@ class MediaInformationRetrieverTest {
         val label = MediaInformationRetriever.getAppLabel(context, packageName)
 
         assertEquals(packageName, label)
+    }
+
+    @Test
+    fun `getCurrentPositionMs advances playing state using elapsed realtime and speed`() {
+        val state = PlaybackState.Builder()
+            .setState(PlaybackState.STATE_PLAYING, 10_000L, 1.5f, 100_000L)
+            .build()
+
+        val position = MediaInformationRetriever.getCurrentPositionMs(
+            state,
+            nowElapsedRealtimeMs = 104_000L
+        )
+
+        assertEquals(16_000L, position)
+    }
+
+    @Test
+    fun `getCurrentPositionMs does not advance paused state`() {
+        val state = PlaybackState.Builder()
+            .setState(PlaybackState.STATE_PAUSED, 10_000L, 1.0f, 100_000L)
+            .build()
+
+        val position = MediaInformationRetriever.getCurrentPositionMs(
+            state,
+            nowElapsedRealtimeMs = 104_000L
+        )
+
+        assertEquals(10_000L, position)
+    }
+
+    @Test
+    fun `getCurrentPositionMs returns zero for unknown position`() {
+        val state = PlaybackState.Builder()
+            .setState(PlaybackState.STATE_PLAYING, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1.0f, 100_000L)
+            .build()
+
+        val position = MediaInformationRetriever.getCurrentPositionMs(
+            state,
+            nowElapsedRealtimeMs = 104_000L
+        )
+
+        assertEquals(0L, position)
     }
 }

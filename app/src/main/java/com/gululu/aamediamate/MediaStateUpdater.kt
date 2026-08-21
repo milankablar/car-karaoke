@@ -70,7 +70,7 @@ class MediaStateUpdater(private val context: Context) {
         stateBuilder.setState(
                 if (info.isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
                 info.position,
-                1.0f
+                if (info.isPlaying) 1.0f else 0.0f
             )
         mediaSession.setPlaybackState(stateBuilder.build())
     }
