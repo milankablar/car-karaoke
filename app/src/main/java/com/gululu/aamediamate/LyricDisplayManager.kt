@@ -110,7 +110,7 @@ class LyricDisplayManager(private val context: Context) {
                         return@launch
                     }
 
-                    val currentPosition = MediaControllerManager.getActiveController(context)?.playbackState?.position ?: info.position
+                    val currentPosition = MediaInformationRetriever.getEstimatedPositionMs(info)
                     val offsetMs = SettingsManager.getLyricsTimingOffset(context).toLong()
                     DiagnosticLogger.info(
                         context,

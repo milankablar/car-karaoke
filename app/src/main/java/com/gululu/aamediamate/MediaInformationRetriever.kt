@@ -28,6 +28,7 @@ object MediaInformationRetriever {
 
             val metadata = controller.metadata ?: return null
             val state = controller.playbackState ?: return null
+            val retrievedAtMs = SystemClock.elapsedRealtime()
 
             val appIcon = getAppIconBitmap(context, controller.packageName)
             var albumArt = getArtwork(metadata)
@@ -44,9 +45,11 @@ object MediaInformationRetriever {
                 artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)?.takeIf { it.isNotBlank() } ?: "",
                 album = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM)?.takeIf { it.isNotBlank() } ?: "",
                 duration = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION),
-                position = getCurrentPositionMs(state),
+                position = getCurrentPositionMs(state, retrievedAtMs),
                 isPlaying = state.state == PlaybackState.STATE_PLAYING,
-                albumArt = albumArt
+                albumArt = albumArt,
+                playbackStateUpdateTimeMs = state.lastPositionUpdateTime,
+                retrievedAtElapsedRealtimeMs = retrievedAtMs
             )
 
             Log.d("MediaBridge", "🔄 Updating media info：$mediaInfo")
@@ -60,6 +63,8 @@ object MediaInformationRetriever {
                     "title" to mediaInfo.title,
                     "artist" to mediaInfo.artist,
                     "playing" to mediaInfo.isPlaying,
+                    "positionMs" to mediaInfo.position,
+                    "stateUpdateTimeMs" to mediaInfo.playbackStateUpdateTimeMs,
                     "durationMs" to mediaInfo.duration
                 )
             )
@@ -81,6 +86,7 @@ object MediaInformationRetriever {
 
         val metadata = controller.metadata ?: return null
         val state = controller.playbackState ?: return null
+        val retrievedAtMs = SystemClock.elapsedRealtime()
 
         val appIcon = getAppIconBitmap(context, controller.packageName)
         var albumArt = getArtwork(metadata)
@@ -97,9 +103,11 @@ object MediaInformationRetriever {
             artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)?.takeIf { it.isNotBlank() } ?: "",
             album = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM)?.takeIf { it.isNotBlank() } ?: "",
             duration = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION),
-            position = getCurrentPositionMs(state),
+            position = getCurrentPositionMs(state, retrievedAtMs),
             isPlaying = state.state == PlaybackState.STATE_PLAYING,
-            albumArt = albumArt
+            albumArt = albumArt,
+            playbackStateUpdateTimeMs = state.lastPositionUpdateTime,
+            retrievedAtElapsedRealtimeMs = retrievedAtMs
         )
     }
 
@@ -124,6 +132,17 @@ object MediaInformationRetriever {
         return (basePosition + elapsedMs * state.playbackSpeed.toDouble())
             .roundToLong()
             .coerceAtLeast(0L)
+    }
+
+    internal fun getEstimatedPositionMs(
+        info: MediaInfo,
+        nowElapsedRealtimeMs: Long = SystemClock.elapsedRealtime()
+    ): Long {
+        val position = info.position.coerceAtLeast(0L)
+        if (!info.isPlaying || info.retrievedAtElapsedRealtimeMs <= 0L) return position
+
+        val elapsedMs = (nowElapsedRealtimeMs - info.retrievedAtElapsedRealtimeMs).coerceAtLeast(0L)
+        return (position + elapsedMs).coerceAtLeast(0L)
     }
 
     private fun composeAlbumArtWithAppIconFixed(

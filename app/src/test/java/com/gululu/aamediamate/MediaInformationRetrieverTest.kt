@@ -119,4 +119,28 @@ class MediaInformationRetrieverTest {
 
         assertEquals(0L, position)
     }
+
+    @Test
+    fun `getEstimatedPositionMs advances playing media info from retrieval time`() {
+        val info = com.gululu.aamediamate.models.MediaInfo(
+            appPackageName = "com.music.app",
+            appName = "Music App",
+            title = "Song",
+            artist = "Artist",
+            album = "Album",
+            duration = 180_000L,
+            position = 2_000L,
+            isPlaying = true,
+            albumArt = null,
+            appIcon = null,
+            retrievedAtElapsedRealtimeMs = 10_000L
+        )
+
+        val position = MediaInformationRetriever.getEstimatedPositionMs(
+            info,
+            nowElapsedRealtimeMs = 14_000L
+        )
+
+        assertEquals(6_000L, position)
+    }
 }
