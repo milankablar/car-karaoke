@@ -6,16 +6,23 @@ import android.content.Intent
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.support.v4.media.session.MediaSessionCompat
 import android.util.Log
 import android.view.KeyEvent
 import com.gululu.aamediamate.diagnostics.DiagnosticLogger
 import com.gululu.aamediamate.diagnostics.DiagnosticModule
 
-class MediaBridgeMediaCallback(private val context: Context) : MediaSessionCompat.Callback() {
+class MediaBridgeMediaCallback internal constructor(
+    private val context: Context,
+    private val requestPlayback: (MediaController) -> Unit
+) : MediaSessionCompat.Callback() {
+    constructor(context: Context) : this(
+        context,
+        requestPlayback = { controller -> controller.transportControls.play() }
+    )
+
     override fun onMediaButtonEvent(mediaButtonEvent: Intent?): Boolean {
+        if (!MediaBridgeSessionManager.isControllerTrusted()) return false
         val keyEvent = mediaButtonEvent?.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT)
 
         if (isSwapEnabled() && keyEvent?.action == KeyEvent.ACTION_DOWN) {
@@ -38,6 +45,7 @@ class MediaBridgeMediaCallback(private val context: Context) : MediaSessionCompa
     }
 
     override fun onPlay() {
+        if (!MediaBridgeSessionManager.isControllerTrusted()) return
         Log.d("MediaBridge", "▶️ onPlay triggered")
         DiagnosticLogger.info(context, DiagnosticModule.MEDIA, "Play requested")
         MediaControllerManager.getActiveController(context)?.transportControls?.play()
@@ -52,6 +60,7 @@ class MediaBridgeMediaCallback(private val context: Context) : MediaSessionCompa
     }
 
     override fun onPause() {
+        if (!MediaBridgeSessionManager.isControllerTrusted()) return
         Log.d("MediaBridge", "⏸️ onPause triggered")
         DiagnosticLogger.info(context, DiagnosticModule.MEDIA, "Pause requested")
         MediaControllerManager.getActiveController(context)?.transportControls?.pause()
@@ -59,6 +68,7 @@ class MediaBridgeMediaCallback(private val context: Context) : MediaSessionCompa
     }
 
     override fun onSkipToNext() {
+        if (!MediaBridgeSessionManager.isControllerTrusted()) return
         Log.d("MediaBridge", "⏭️ onSkipToNext triggered")
         DiagnosticLogger.info(context, DiagnosticModule.MEDIA, "Skip next requested")
         if (isSwapEnabled()) {
@@ -70,6 +80,7 @@ class MediaBridgeMediaCallback(private val context: Context) : MediaSessionCompa
     }
 
     override fun onSkipToPrevious() {
+        if (!MediaBridgeSessionManager.isControllerTrusted()) return
         Log.d("MediaBridge", "⏮️ onSkipToPrevious triggered")
         DiagnosticLogger.info(context, DiagnosticModule.MEDIA, "Skip previous requested")
         if (isSwapEnabled()) {
@@ -81,6 +92,7 @@ class MediaBridgeMediaCallback(private val context: Context) : MediaSessionCompa
     }
 
     override fun onSeekTo(pos: Long) {
+        if (!MediaBridgeSessionManager.isControllerTrusted()) return
         Log.d("MediaBridge", "🎯 onSeekTo triggered: $pos ms")
         DiagnosticLogger.info(context, DiagnosticModule.MEDIA, "Seek requested", mapOf("positionMs" to pos))
         MediaControllerManager.getActiveController(context)?.transportControls?.seekTo(pos)
@@ -89,6 +101,7 @@ class MediaBridgeMediaCallback(private val context: Context) : MediaSessionCompa
     }
 
     override fun onRewind() {
+        if (!MediaBridgeSessionManager.isControllerTrusted()) return
         val controller = MediaControllerManager.getActiveController(context) ?: return
         val pos = controller.playbackState?.position ?: 0L
         val newPos = (pos - 10_000).coerceAtLeast(0L)
@@ -99,6 +112,7 @@ class MediaBridgeMediaCallback(private val context: Context) : MediaSessionCompa
     }
 
     override fun onFastForward() {
+        if (!MediaBridgeSessionManager.isControllerTrusted()) return
         val controller = MediaControllerManager.getActiveController(context) ?: return
         val pos = controller.playbackState?.position ?: 0L
         val newPos = pos + 10_000
@@ -109,6 +123,7 @@ class MediaBridgeMediaCallback(private val context: Context) : MediaSessionCompa
     }
 
     override fun onPlayFromMediaId(mediaId: String?, extras: Bundle?) {
+        if (!MediaBridgeSessionManager.isControllerTrusted()) return
         Log.d("MediaBridge", "onPlayFromMediaId: $mediaId")
         DiagnosticLogger.info(context, DiagnosticModule.MEDIA, "Play from media id requested", mapOf("mediaId" to mediaId))
 
@@ -122,10 +137,13 @@ class MediaBridgeMediaCallback(private val context: Context) : MediaSessionCompa
             if (info != null) {
                 MediaBridgeSessionManager.updateFromMediaInfo(info)
             }
+            requestPlayback(controller)
+            sync()
         }
     }
 
     override fun onCustomAction(action: String?, extras: Bundle?) {
+        if (!MediaBridgeSessionManager.isControllerTrusted()) return
         Log.d("MediaBridge", "🎯 Custom action triggered: $action")
         
         when (action) {
@@ -162,8 +180,6 @@ class MediaBridgeMediaCallback(private val context: Context) : MediaSessionCompa
 
     private fun sync()
     {
-        Handler(Looper.getMainLooper()).postDelayed({
-            MediaBridgeSessionManager.updateFromMediaInfo(MediaInformationRetriever.refreshCurrentMediaInfo(context))
-        }, 500)
+        MediaBridgeSessionManager.requestRefresh("Transport control", 500L)
     }
 }

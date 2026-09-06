@@ -49,6 +49,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -102,6 +103,16 @@ class MainActivity : ComponentActivity() {
         super.attachBaseContext(context)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::billingManager.isInitialized) billingManager.refreshPurchases()
+    }
+
+    override fun onDestroy() {
+        if (::billingManager.isInitialized) billingManager.close()
+        super.onDestroy()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         billingManager = BillingManager(this)
@@ -146,18 +157,18 @@ fun applyLanguage(context: Context, language: String, country: String): Context 
 fun MediaBridgeApp(billingManager: BillingManager? = null) {
     val context = LocalContext.current
 
-    var showSettings by remember { mutableStateOf(false) }
-    var showLyricsManager by remember { mutableStateOf(false) }
-    var showLyricsSettings by remember { mutableStateOf(false) }
-    var showBridgedApps by remember { mutableStateOf(false) }
-    var showLyricsProviders by remember { mutableStateOf(false) }
-    var showLyricsCleanupRules by remember { mutableStateOf(false) }
-    var showDisplaySettings by remember { mutableStateOf(false) }
-    var showDonationScreen by remember { mutableStateOf(false) }
-    var showBackupRestore by remember { mutableStateOf(false) }
-    var showDiagnosticLogs by remember { mutableStateOf(false) }
-    var selectedLyricsKey by remember { mutableStateOf<String?>(null) }
-    var manualSearchLyricsKey by remember { mutableStateOf<String?>(null) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showLyricsManager by rememberSaveable { mutableStateOf(false) }
+    var showLyricsSettings by rememberSaveable { mutableStateOf(false) }
+    var showBridgedApps by rememberSaveable { mutableStateOf(false) }
+    var showLyricsProviders by rememberSaveable { mutableStateOf(false) }
+    var showLyricsCleanupRules by rememberSaveable { mutableStateOf(false) }
+    var showDisplaySettings by rememberSaveable { mutableStateOf(false) }
+    var showDonationScreen by rememberSaveable { mutableStateOf(false) }
+    var showBackupRestore by rememberSaveable { mutableStateOf(false) }
+    var showDiagnosticLogs by rememberSaveable { mutableStateOf(false) }
+    var selectedLyricsKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var manualSearchLyricsKey by rememberSaveable { mutableStateOf<String?>(null) }
     var currentMediaInfo by remember { mutableStateOf<MediaInfo?>(null) }
 
     LaunchedEffect(Unit) {
@@ -220,7 +231,7 @@ fun MediaBridgeApp(billingManager: BillingManager? = null) {
             onOpenDonation = { showDonationScreen = true },
             onOpenBackupRestore = { showBackupRestore = true },
             onOpenLyricsEditor = { title, artist ->
-                selectedLyricsKey = title + "_" + artist
+                selectedLyricsKey = com.gululu.aamediamate.lyrics.LyricsRepository.keyFor(title, artist)
             },
             onOpenApp = { packageName ->
                 val intent = context.packageManager.getLaunchIntentForPackage(packageName)
@@ -264,7 +275,7 @@ fun MainScreen(
         }
     }
 
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {

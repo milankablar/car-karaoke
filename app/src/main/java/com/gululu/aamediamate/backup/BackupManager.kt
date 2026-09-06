@@ -8,6 +8,11 @@ import com.gululu.aamediamate.SettingsManager
 import com.gululu.aamediamate.lyrics.LyricCache
 import com.gululu.aamediamate.lyrics.LyricsRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.withLock
+import com.gululu.aamediamate.lyrics.LyricsStorage
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedInputStream
@@ -59,45 +64,50 @@ object BackupManager {
         includeSettings: Boolean,
         includeSecrets: Boolean
     ): BackupExportResult = withContext(Dispatchers.IO) {
-        val lyricsFiles = if (includeLyrics) getNonEmptyLyricsFiles(context) else emptyList()
-        val settingsJson = if (includeSettings) {
-            SettingsManager.exportBackupSettings(context, includeSecrets)
-        } else {
-            null
-        }
-        val manifest = JSONObject().apply {
-            put("formatVersion", FORMAT_VERSION)
-            put("createdAt", System.currentTimeMillis())
-            put("appVersionName", getAppVersionName(context))
-            put("includesLyrics", includeLyrics)
-            put("includesSettings", includeSettings)
-            put("includesSecrets", includeSettings && includeSecrets)
-            put("lyricsFileCount", lyricsFiles.size)
-        }
-
-        val outputStream = context.contentResolver.openOutputStream(outputUri)
-            ?: throw IOException("Could not open backup output file")
-
-        ZipOutputStream(BufferedOutputStream(outputStream)).use { zip ->
-            zip.writeJsonEntry(MANIFEST_ENTRY, manifest)
-
-            if (settingsJson != null) {
-                zip.writeJsonEntry(SETTINGS_ENTRY, settingsJson)
+        LyricsStorage.mutex.withLock {
+            val lyricsFiles = if (includeLyrics) getNonEmptyLyricsFiles(context) else emptyList()
+            val settingsJson = if (includeSettings) {
+                SettingsManager.exportBackupSettings(context, includeSecrets)
+            } else {
+                null
+            }
+            val manifest = JSONObject().apply {
+                put("formatVersion", FORMAT_VERSION)
+                put("createdAt", System.currentTimeMillis())
+                put("appVersionName", getAppVersionName(context))
+                put("includesLyrics", includeLyrics)
+                put("includesSettings", includeSettings)
+                put("includesSecrets", includeSettings && includeSecrets)
+                put("lyricsFileCount", lyricsFiles.size)
             }
 
-            lyricsFiles.forEach { file ->
-                zip.putNextEntry(ZipEntry("$LYRICS_PREFIX${file.name}"))
-                file.inputStream().use { input ->
-                    input.copyTo(zip)
+            val outputStream = context.contentResolver.openOutputStream(outputUri)
+                ?: throw IOException("Could not open backup output file")
+
+            ZipOutputStream(BufferedOutputStream(outputStream)).use { zip ->
+                zip.writeJsonEntry(MANIFEST_ENTRY, manifest)
+
+                if (settingsJson != null) {
+                    zip.writeJsonEntry(SETTINGS_ENTRY, settingsJson)
                 }
-                zip.closeEntry()
-            }
-        }
 
-        BackupExportResult(
-            lyricsFileCount = lyricsFiles.size,
-            includesSettings = includeSettings
-        )
+                lyricsFiles.flatMap { file ->
+                    val metadata = File(file.parentFile, file.name.removeSuffix(".lrt") + ".json")
+                    if (metadata.exists()) listOf(file, metadata) else listOf(file)
+                }.forEach { file ->
+                    zip.putNextEntry(ZipEntry("$LYRICS_PREFIX${file.name}"))
+                    file.inputStream().use { input ->
+                        input.copyTo(zip)
+                    }
+                    zip.closeEntry()
+                }
+            }
+
+            BackupExportResult(
+                lyricsFileCount = lyricsFiles.size,
+                includesSettings = includeSettings
+            )
+        }
     }
 
     suspend fun readBackupPreview(context: Context, inputUri: Uri): BackupPreview = withContext(Dispatchers.IO) {
@@ -123,62 +133,91 @@ object BackupManager {
         restoreLyrics: Boolean,
         restoreSettings: Boolean
     ): BackupRestoreResult = withContext(Dispatchers.IO) {
-        var restoredLyricsCount = 0
-        var restoredSettings = false
-        val lyricsDir = LyricCache.getLyricsDir(context)
-        val updatedKeys = mutableListOf<String>()
-
-        val inputStream = context.contentResolver.openInputStream(inputUri)
-            ?: throw IOException("Could not open backup input file")
-
-        ZipInputStream(BufferedInputStream(inputStream)).use { zip ->
-            var entry = zip.nextEntry
-            while (entry != null) {
-                if (!entry.isDirectory) {
-                    when {
-                        restoreSettings && entry.name == SETTINGS_ENTRY -> {
-                            val settings = JSONObject(zip.readCurrentEntryText())
-                            SettingsManager.importBackupSettings(context, settings)
-                            restoredSettings = true
-                        }
-                        restoreLyrics && entry.name.startsWith(LYRICS_PREFIX) -> {
-                            val fileName = entry.name.removePrefix(LYRICS_PREFIX)
-                            if (isSafeLyricsFileName(fileName)) {
-                                val outputFile = File(lyricsDir, fileName)
-                                outputFile.parentFile?.mkdirs()
-                                outputFile.outputStream().use { output ->
-                                    zip.copyTo(output)
+        require(restoreLyrics || restoreSettings) { "No restore content selected" }
+        val staging = File.createTempFile("lyrics-restore-", "", context.cacheDir)
+        check(staging.delete() && staging.mkdirs())
+        try {
+            var manifest: JSONObject? = null
+            var settings: JSONObject? = null
+            val names = mutableSetOf<String>()
+            var totalBytes = 0L
+            var entryCount = 0
+            val input = context.contentResolver.openInputStream(inputUri)
+                ?: throw IOException("Could not open backup input file")
+            ZipInputStream(BufferedInputStream(input)).use { zip ->
+                var entry = zip.nextEntry
+                while (entry != null) {
+                    currentCoroutineContext().ensureActive()
+                    if (++entryCount > 10_000) throw IOException("Too many backup entries")
+                    val bytes = zip.readCurrentEntryBytes()
+                    totalBytes += bytes.size
+                    if (totalBytes > 100L * 1024 * 1024) throw IOException("Backup is too large")
+                    if (!entry.isDirectory) {
+                        if (!names.add(entry.name)) throw IOException("Duplicate backup entry")
+                        when {
+                            entry.name == MANIFEST_ENTRY -> manifest = JSONObject(bytes.toString(Charsets.UTF_8))
+                            entry.name == SETTINGS_ENTRY -> settings = SettingsManager.validateBackupSettings(JSONObject(bytes.toString(Charsets.UTF_8)))
+                            entry.name.startsWith(LYRICS_PREFIX) -> {
+                                val name = entry.name.removePrefix(LYRICS_PREFIX)
+                                if (!BackupTransaction.isSafeName(name)) throw IOException("Unsafe lyrics file name")
+                                if (name.endsWith(".json")) {
+                                    val metadata = JSONObject(bytes.toString(Charsets.UTF_8))
+                                    if (metadata.has("title") || metadata.has("artist")) {
+                                        val key = LyricsRepository.keyFor(metadata.getString("title"), metadata.getString("artist"))
+                                        if (name.startsWith("v2_")) require(name == "$key.json") { "Invalid lyric identity" }
+                                    }
                                 }
-                                restoredLyricsCount++
-                                updatedKeys += fileName.removeSuffix(".lrt")
+                                LyricsStorage.write(File(staging, name), bytes.toString(Charsets.UTF_8))
                             }
+                            else -> throw IOException("Unexpected backup entry")
                         }
                     }
+                    zip.closeEntry()
+                    entry = zip.nextEntry
                 }
-                zip.closeEntry()
-                entry = zip.nextEntry
             }
+            val descriptor = manifest ?: throw IOException("Missing backup manifest")
+            if (descriptor.optInt("formatVersion", -1) != FORMAT_VERSION) throw IOException("Unsupported backup format")
+            val stagedFiles = staging.listFiles().orEmpty().toList()
+            val lyricCount = stagedFiles.count { it.name.endsWith(".lrt") }
+            if (descriptor.optInt("lyricsFileCount", -1) != lyricCount) throw IOException("Incomplete backup")
+            if (restoreSettings && settings == null) throw IOException("Missing backup settings")
+            stagedFiles.filter { it.name.endsWith(".json") }.forEach {
+                if (!File(staging, it.name.removeSuffix(".json") + ".lrt").exists()) throw IOException("Orphan lyric identity")
+            }
+            currentCoroutineContext().ensureActive()
+            // Once publication begins, complete it or roll it back even if the screen is closed.
+            withContext(NonCancellable) {
+                LyricsStorage.mutex.withLock {
+                    BackupTransaction.commit(
+                        context, LyricCache.getLyricsDir(context),
+                        if (restoreLyrics) stagedFiles else emptyList(), if (restoreSettings) settings else null
+                    )
+                }
+                LyricsRepository.notifyLyricsUpdated(LyricsRepository.ALL_LYRICS)
+            }
+            BackupRestoreResult(if (restoreLyrics) lyricCount else 0, restoreSettings)
+        } finally {
+            staging.deleteRecursively()
         }
-
-        updatedKeys.forEach { key ->
-            LyricsRepository.notifyLyricsUpdated(key)
-        }
-
-        BackupRestoreResult(
-            restoredLyricsCount = restoredLyricsCount,
-            restoredSettings = restoredSettings
-        )
     }
 
-    private fun readManifest(context: Context, inputUri: Uri): JSONObject {
+    private suspend fun readManifest(context: Context, inputUri: Uri): JSONObject {
         val inputStream = context.contentResolver.openInputStream(inputUri)
             ?: throw IOException("Could not open backup input file")
 
         ZipInputStream(BufferedInputStream(inputStream)).use { zip ->
             var entry = zip.nextEntry
+            var entryCount = 0
+            var totalBytes = 0L
             while (entry != null) {
+                currentCoroutineContext().ensureActive()
+                if (++entryCount > 10_000) throw IOException("Too many backup entries")
+                val bytes = zip.readCurrentEntryBytes()
+                totalBytes += bytes.size
+                if (totalBytes > 100L * 1024 * 1024) throw IOException("Backup is too large")
                 if (!entry.isDirectory && entry.name == MANIFEST_ENTRY) {
-                    return JSONObject(zip.readCurrentEntryText())
+                    return JSONObject(bytes.toString(Charsets.UTF_8))
                 }
                 zip.closeEntry()
                 entry = zip.nextEntry
@@ -209,24 +248,21 @@ object BackupManager {
         return packageInfo.versionName ?: ""
     }
 
-    private fun isSafeLyricsFileName(fileName: String): Boolean =
-        fileName.isNotBlank() &&
-                fileName.endsWith(".lrt") &&
-                !fileName.contains("/") &&
-                !fileName.contains("\\")
-
     private fun ZipOutputStream.writeJsonEntry(name: String, json: JSONObject) {
         putNextEntry(ZipEntry(name))
         write(json.toString(2).toByteArray(Charsets.UTF_8))
         closeEntry()
     }
 
-    private fun ZipInputStream.readCurrentEntryText(): String =
-        readCurrentEntryBytes().toString(Charsets.UTF_8)
-
     private fun ZipInputStream.readCurrentEntryBytes(): ByteArray {
         val output = ByteArrayOutputStream()
-        copyTo(output)
+        val buffer = ByteArray(8192)
+        while (true) {
+            val count = read(buffer)
+            if (count < 0) break
+            if (output.size() + count > LyricsStorage.MAX_LYRICS_BYTES) throw IOException("Backup entry is too large")
+            output.write(buffer, 0, count)
+        }
         return output.toByteArray()
     }
 }

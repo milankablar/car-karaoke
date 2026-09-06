@@ -1,49 +1,34 @@
 package com.gululu.aamediamate.lyrics
 
-import kotlinx.coroutines.*
-import android.util.Log
+import android.os.SystemClock
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlin.math.ceil
 
+/** Synchronizes lyrics within the caller's job, using a monotonic playback clock. */
 object LyricSyncEngine {
-    private var currentJob: Job? = null
-
-    fun start(lyrics: List<LyricLine>, startPositionMs: Long, offsetMs: Long = 0L, onLineChanged: (String, String?) -> Unit) {
-        currentJob?.cancel()
-
-        currentJob = CoroutineScope(Dispatchers.Default).launch {
-            Log.d("MediaBridge", "🎤 LyricSyncEngine starting with position: ${startPositionMs}ms, offset: ${offsetMs}ms")
-
-            val effectiveStartPositionMs = startPositionMs - offsetMs
-            val startTime = System.currentTimeMillis() - effectiveStartPositionMs
-            var lastLineIndex = -1
-
-            // Find the current line based on actual playback position (not offset)
-            val currentTimeSec = startPositionMs / 1000.0f
-            val currentLineIndex = lyrics.indexOfFirst { it.timeSec > currentTimeSec }
-            
-            Log.d("MediaBridge", "🎤 Current time: ${currentTimeSec}s, starting from line: ${currentLineIndex.coerceAtLeast(0)}")
-
-            for (i in currentLineIndex.coerceAtLeast(0) until lyrics.size) {
-                val line = lyrics[i]
-                val delayMs = (line.timeSec * 1000 - (System.currentTimeMillis() - startTime))
-                
-                if (delayMs > 0) {
-                    Log.d("MediaBridge", "🎤 Waiting ${delayMs}ms for lyric line index $i")
-                    delay(delayMs.toLong())
-                } else {
-                    Log.d("MediaBridge", "🎤 Playing catch-up for lyric line index $i")
-                }
-                
-                onLineChanged(line.text, lyrics.getOrNull(i + 1)?.text?.takeIf { nextLine -> nextLine.isNotBlank() })
-                lastLineIndex = i
+    suspend fun sync(
+        lyrics: List<LyricLine>,
+        startPositionMs: Long,
+        offsetMs: Long = 0L,
+        playbackSpeed: Float = 1f,
+        nowMs: () -> Long = SystemClock::elapsedRealtime,
+        onLineChanged: (String, String?) -> Unit
+    ) {
+        if (lyrics.isEmpty() || !playbackSpeed.isFinite() || playbackSpeed <= 0f) return
+        val startedAt = nowMs()
+        var lastIndex = Int.MIN_VALUE
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            val position = startPositionMs + (nowMs() - startedAt).coerceAtLeast(0) * playbackSpeed.toDouble() - offsetMs
+            val index = lyrics.indexOfLast { it.timeSec * 1000.0 <= position }
+            if (index != lastIndex) {
+                onLineChanged(lyrics.getOrNull(index)?.text.orEmpty(), lyrics.getOrNull(index + 1)?.text)
+                lastIndex = index
             }
-            
-            Log.d("MediaBridge", "🎤 LyricSyncEngine finished, processed ${lastLineIndex + 1} lines")
+            val next = lyrics.getOrNull(index + 1) ?: return
+            delay(ceil((next.timeSec * 1000.0 - position) / playbackSpeed).toLong().coerceAtLeast(1))
         }
-    }
-
-    fun stop() {
-        currentJob?.cancel()
-        currentJob = null
-        Log.d("MediaBridge", "🎤 LyricSyncEngine stopped")
     }
 }

@@ -8,14 +8,14 @@ plugins {
 
 android {
     namespace = "com.gululu.aamediamate"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.gululu.aamediamate"
         minSdk = 29
-        targetSdk = 35
-        versionCode = 17
-        versionName = "1.4.3"
+        targetSdk = 36
+        versionCode = 19
+        versionName = "1.4.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

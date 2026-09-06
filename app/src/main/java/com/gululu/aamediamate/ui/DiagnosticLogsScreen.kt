@@ -52,6 +52,9 @@ import com.gululu.aamediamate.diagnostics.DiagnosticLevel
 import com.gululu.aamediamate.diagnostics.DiagnosticLogger
 import com.gululu.aamediamate.diagnostics.DiagnosticModule
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.LaunchedEffect
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -64,7 +67,7 @@ fun DiagnosticLogsScreen(onBack: () -> Unit) {
     val clipboardManager = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    var events by remember { mutableStateOf(DiagnosticLogger.getEvents(context)) }
+    var events by remember { mutableStateOf<List<DiagnosticEvent>>(emptyList()) }
     var selectedLevels by remember {
         mutableStateOf(setOf(DiagnosticLevel.INFO, DiagnosticLevel.WARN, DiagnosticLevel.ERROR))
     }
@@ -81,9 +84,13 @@ fun DiagnosticLogsScreen(onBack: () -> Unit) {
     }
 
     fun refreshEvents() {
-        events = DiagnosticLogger.getEvents(context)
-        debugEnabled = DiagnosticLogger.isDebugEnabled(context)
+        coroutineScope.launch {
+            events = withContext(Dispatchers.IO) { DiagnosticLogger.getEvents(context) }
+            debugEnabled = DiagnosticLogger.isDebugEnabled(context)
+        }
     }
+
+    LaunchedEffect(Unit) { refreshEvents() }
 
     Scaffold(
         topBar = {
@@ -160,8 +167,10 @@ fun DiagnosticLogsScreen(onBack: () -> Unit) {
                 }
                 OutlinedButton(
                     onClick = {
-                        DiagnosticLogger.clear(context)
-                        refreshEvents()
+                        coroutineScope.launch {
+                            withContext(Dispatchers.IO) { DiagnosticLogger.clear(context) }
+                            refreshEvents()
+                        }
                     }
                 ) {
                     Text(stringResource(R.string.clear))

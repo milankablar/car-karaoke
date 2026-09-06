@@ -8,7 +8,7 @@ import com.gululu.aamediamate.diagnostics.DiagnosticModule
 import com.gululu.aamediamate.lyrics.providers.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.regex.Pattern
+import kotlinx.coroutines.CancellationException
 
 data class LyricLine(val timeSec: Float, val text: String)
 
@@ -32,10 +32,11 @@ object LyricsManager {
             )
         )
         
+        var lastFailure: Exception? = null
         for (providerConfig in enabledProviders) {
             try {
                 val lrc = providerConfig.provider.getLyricsLrc(context, cleanedTitle, cleanedArtist, duration)
-                if (!lrc.isNullOrBlank()) {
+                if (!lrc.isNullOrBlank() && parseLrc(context, lrc).isNotEmpty()) {
                     DiagnosticLogger.info(
                         context,
                         DiagnosticModule.LYRICS,
@@ -54,7 +55,10 @@ object LyricsManager {
                     "Lyric provider returned no lyrics",
                     mapOf("provider" to providerConfig.id)
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                lastFailure = e
                 DiagnosticLogger.error(
                     context,
                     DiagnosticModule.LYRICS,
@@ -70,43 +74,29 @@ object LyricsManager {
             "All lyric providers returned no lyrics",
             mapOf("title" to cleanedTitle, "artist" to cleanedArtist)
         )
+        if (lastFailure != null) throw java.io.IOException("Lyrics providers unavailable", lastFailure)
         return@withContext null
     }
 
     fun parseLrc(context: Context, lrc: String): List<LyricLine> {
-        // This regex captures all timestamp tags at the beginning of the line, and the lyric text.
-        // Group 1: The entire block of timestamp tags (e.g., "[00:01.23][00:02.45]")
-        // Group 2: The lyric text after the timestamps
-        val linePattern = Pattern.compile("((?:\\[\\d+:\\d+\\.\\d+])+)(.*)")
-
-        // This regex is for parsing a single timestamp tag from the block captured by group 1.
-        val timeTagPattern = Pattern.compile("\\[(\\d+):(\\d+\\.\\d+)]")
-
-        val lyricLines = mutableListOf<LyricLine>()
-
-        lrc.lineSequence().forEach { line ->
-            val lineMatcher = linePattern.matcher(line)
-            if (lineMatcher.matches()) {
-                val tagsBlock = lineMatcher.group(1)!!
-                var text = lineMatcher.group(2)!!.trim()
-
-                // Chinese character conversion
-                if (SettingsManager.getSimplifyEnabled(context)) {
-                    text = ZhConverterUtil.toSimple(text)
-                } else {
-                    text = ZhConverterUtil.toTraditional(text)
-                }
-
-                val timeTagMatcher = timeTagPattern.matcher(tagsBlock)
-                while (timeTagMatcher.find()) {
-                    val min = timeTagMatcher.group(1)!!.toInt()
-                    val sec = timeTagMatcher.group(2)!!.toFloat()
-                    val timeSec = min * 60 + sec
-                    lyricLines.add(LyricLine(timeSec = timeSec, text = text))
-                }
+        val simplify = SettingsManager.getSimplifyEnabled(context)
+        return lrc.lineSequence().flatMap { line ->
+            val tags = LrcFormat.timestamp.findAll(line).toList()
+            if (tags.isEmpty() || tags.first().range.first != 0) return@flatMap emptySequence()
+            // Only consecutive leading timestamps belong to this line.
+            val leading = tags.takeLeadingTimestamps()
+            val text = line.substring(leading.last().range.last + 1).trim()
+            val converted = if (simplify) ZhConverterUtil.toSimple(text) else ZhConverterUtil.toTraditional(text)
+            leading.asSequence().mapNotNull { tag ->
+                LrcFormat.timeMs(tag)?.let { LyricLine(it / 1000f, converted) }
             }
-        }
+        }.sortedBy { it.timeSec }.toList()
+    }
 
-        return lyricLines.sortedBy { it.timeSec }
+    private fun List<MatchResult>.takeLeadingTimestamps(): List<MatchResult> {
+        var end = 0
+        return takeWhile { match ->
+            (match.range.first == end).also { if (it) end = match.range.last + 1 }
+        }
     }
 }

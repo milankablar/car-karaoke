@@ -7,6 +7,8 @@ import io.mockk.mockkObject
 import io.mockk.unmockkObject
 import io.mockk.verify
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -78,5 +80,17 @@ class SettingsManagerBridgedAppsTest {
         }
 
         assertEquals(0, SettingsManager.getBridgedApps(context).size)
+    }
+
+    @Test
+    fun `native Android Auto players are included by default`() {
+        assertFalse(SettingsManager.getIgnoreNativeAutoApps(context))
+    }
+
+    @Test
+    fun `saved native Android Auto preference is preserved`() {
+        SettingsManager.setIgnoreNativeAutoApps(context, true)
+
+        assertTrue(SettingsManager.getIgnoreNativeAutoApps(context))
     }
 }

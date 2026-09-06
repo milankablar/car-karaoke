@@ -5,6 +5,7 @@ import android.util.Log
 import com.gululu.aamediamate.SettingsManager
 import com.gululu.aamediamate.diagnostics.DiagnosticLogger
 import com.gululu.aamediamate.diagnostics.DiagnosticModule
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -37,18 +38,19 @@ object LrcApiProvider : LyricsProvider {
                 .build()
 
             Log.d("MediaBridge", "Sending request to Lrc Api")
-            client.newCall(request).execute().use { response ->
-                val body = response.body()?.string()
+            client.fetchLyrics(request).let { response ->
+                val body = response.body
                 val details = mapOf(
                     "provider" to "lrc_api",
                     "url" to url,
-                    "status" to response.code(),
+                    "status" to response.code,
                     "durationMs" to (System.currentTimeMillis() - startedMs),
                     "bodyBytes" to (body?.toByteArray()?.size ?: 0)
                 )
-                Log.d("MediaBridge", "Lrc Api response code: ${response.code()}")
+                Log.d("MediaBridge", "Lrc Api response code: ${response.code}")
 
-                if (response.code() != 200) {
+                if (response.code != 200) {
+                    if (response.code != 404) throw java.io.IOException("Lyrics HTTP error: ${response.code}")
                     DiagnosticLogger.warn(context, DiagnosticModule.NETWORK, "Lyrics request failed", details)
                     return@withContext null
                 }
@@ -66,6 +68,8 @@ object LrcApiProvider : LyricsProvider {
                 )
                 body
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DiagnosticLogger.error(
                 context,
@@ -74,7 +78,7 @@ object LrcApiProvider : LyricsProvider {
                 mapOf("provider" to "lrc_api", "url" to baseUrl),
                 e
             )
-            null
+            throw e
         }
     }
 }

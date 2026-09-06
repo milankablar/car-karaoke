@@ -5,6 +5,7 @@ import android.util.Log
 import com.gululu.aamediamate.SettingsManager
 import com.gululu.aamediamate.diagnostics.DiagnosticLogger
 import com.gululu.aamediamate.diagnostics.DiagnosticModule
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -39,18 +40,19 @@ object SpotifyProvider : LyricsProvider {
                 .build()
             Log.d("MediaBridge", "Sending request to spotify")
 
-            client.newCall(request).execute().use { response ->
-                val body = response.body()?.string()
+            client.fetchLyrics(request).let { response ->
+                val body = response.body
                 val details = mapOf(
                     "provider" to "Spotify",
                     "url" to url,
-                    "status" to response.code(),
+                    "status" to response.code,
                     "durationMs" to (System.currentTimeMillis() - startedMs),
                     "bodyBytes" to (body?.toByteArray()?.size ?: 0)
                 )
 
-                Log.d("MediaBridge", "Spotify response code: ${response.code()}")
-                if (response.code() != 200) {
+                Log.d("MediaBridge", "Spotify response code: ${response.code}")
+                if (response.code != 200) {
+                    if (response.code != 404) throw java.io.IOException("Lyrics HTTP error: ${response.code}")
                     DiagnosticLogger.warn(context, DiagnosticModule.NETWORK, "Lyrics request failed", details)
                     return@withContext null
                 }
@@ -91,6 +93,8 @@ object SpotifyProvider : LyricsProvider {
                 }
                 return@withContext lyrics
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             DiagnosticLogger.error(
                 context,
@@ -99,7 +103,7 @@ object SpotifyProvider : LyricsProvider {
                 mapOf("provider" to "Spotify", "url" to BASE_URL),
                 e
             )
-            null
+            throw e
         }
     }
 }

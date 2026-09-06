@@ -1,85 +1,89 @@
 package com.gululu.aamediamate.lyrics
 
 import android.content.Context
-import io.mockk.coEvery
-import io.mockk.every
-import io.mockk.mockk
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import android.content.ContextWrapper
+import io.mockk.*
+import kotlinx.coroutines.*
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Before
-import org.junit.Test
+import org.junit.*
+import org.junit.Assert.*
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import java.io.File
+import java.io.IOException
 
-@ExperimentalCoroutinesApi
 @RunWith(RobolectricTestRunner::class)
 class LyricCacheTest {
-
+    @get:Rule val folder = TemporaryFolder()
     private lateinit var context: Context
-    private lateinit var lyricsDir: File
+    private lateinit var directory: File
 
-    @Before
-    fun setUp() {
-        context = mockk(relaxed = true)
-        lyricsDir = File("build/tmp/test_lyrics")
-        lyricsDir.deleteRecursively()
-        lyricsDir.mkdirs()
-        every { context.getExternalFilesDir("lyrics") } returns lyricsDir
+    @Before fun setup() {
+        directory = folder.newFolder("lyrics")
+        val internal = folder.newFolder("internal")
+        context = object : ContextWrapper(RuntimeEnvironment.getApplication()) {
+            override fun getExternalFilesDir(type: String?): File = directory
+            override fun getFilesDir(): File = internal
+        }
+        LyricCache.clearAllMemoryCache()
+        mockkObject(LyricsManager)
     }
 
-    @Test
-    fun `getOrFetchLyrics should return from memory cache if present`() = runTest {
-        val title = "Test Title"
-        val artist = "Test Artist"
-        val key = "${title}_${artist}"
-        val file = File(lyricsDir, "$key.lrt")
-        file.writeText("[00:00.00]Hello")
+    @After fun teardown() { unmockkObject(LyricsManager) }
 
-        LyricCache.clearMemoryCache(key) // Ensure cache is clean
-        val cachedLyrics = LyricCache.getOrFetchLyrics(context, title, artist, "180") // Prime cache
-        file.writeText("[00:00.00]Changed")
-
-        val result = LyricCache.getOrFetchLyrics(context, title, artist, "180")
-
-        assertEquals(cachedLyrics, result)
+    @Test fun legacyFileMigratesAndIdentityPreservesSpecialCharacters() = runTest {
+        File(directory, "a_b_Artist.lrt").writeText("[00:00]hello")
+        val lines = LyricCache.getOrFetchLyrics(context, "a/b", "Artist", "100")
+        assertEquals(listOf(LyricLine(0f, "hello")), lines)
+        val key = LyricsRepository.keyFor("a/b", "Artist")
+        assertEquals("a/b" to "Artist", LyricsRepository.identity(context, key))
+        assertTrue(File(directory, "$key.lrt").exists())
+        assertFalse(File(directory, "a_b_Artist.lrt").exists())
     }
 
-    @Test
-    fun `getOrFetchLyrics should return from file cache if not in memory`() = runTest {
-        val title = "File Cache Title"
-        val artist = "File Cache Artist"
-        val key = "${title}_${artist}"
-        val lrcContent = "[00:01.00]Test lyric"
-        val file = File(lyricsDir, "$key.lrt")
-        file.writeText(lrcContent)
-
-        LyricCache.clearMemoryCache(key) // Ensure not in memory
-
-        val result = LyricCache.getOrFetchLyrics(context, title, artist, "180")
-
-        assertEquals(listOf(LyricLine(1.0f, "Test lyric")), result)
+    @Test fun transientFailureDoesNotCreatePermanentMiss() = runTest {
+        coEvery { LyricsManager.getLyricsLrt(any(), any(), any(), any()) } throws IOException("offline")
+        try {
+            LyricCache.getOrFetchLyrics(context, "Song", "Artist", "100")
+            fail("Expected network failure")
+        } catch (_: IOException) { }
+        val key = LyricsRepository.keyFor("Song", "Artist")
+        assertFalse(File(directory, "$key.lrt").exists())
+        coEvery { LyricsManager.getLyricsLrt(any(), any(), any(), any()) } returns "[00:00]online"
+        assertEquals("online", LyricCache.getOrFetchLyrics(context, "Song", "Artist", "100").single().text)
     }
 
-    @Test
-    fun `getOrFetchLyrics should fetch from network if not in any cache`() {
-        val title = "Network Title"
-        val artist = "Network Artist"
-        val duration = "200"
-        val key = "${title}_${artist}"
-        val networkLrc = "[00:02.00]From network"
-        val parsedLyrics = listOf(LyricLine(2.0f, "From network"))
+    @Test fun inFlightFetchCannotOverwriteUserEdit() = runTest {
+        val started = CompletableDeferred<Unit>()
+        val response = CompletableDeferred<String>()
+        coEvery { LyricsManager.getLyricsLrt(any(), any(), any(), any()) } coAnswers {
+            started.complete(Unit)
+            response.await()
+        }
+        val key = LyricsRepository.keyFor("Song", "Artist")
+        val fetching = async { LyricCache.getOrFetchLyrics(context, "Song", "Artist", "100") }
+        started.await()
+        LyricsRepository.saveLyricsText(context, key, "[00:00]edited")
+        response.complete("[00:00]network")
+        assertEquals("edited", fetching.await().single().text)
+        assertEquals("[00:00]edited", LyricsRepository.loadLyricsText(context, key))
+    }
 
-        io.mockk.mockkObject(LyricsManager)
-        coEvery { LyricsManager.getLyricsLrt(context, title, artist, duration) } returns networkLrc
-        io.mockk.every { LyricsManager.parseLrc(context, networkLrc) } returns parsedLyrics
-
-        LyricCache.clearMemoryCache(key)
-        File(lyricsDir, "$key.lrt").delete()
-
-        val result = kotlinx.coroutines.runBlocking { LyricCache.getOrFetchLyrics(context, title, artist, duration) }
-
-        assert(result == parsedLyrics)
+    @Test fun deletingDuringFetchDoesNotRecreateFile() = runTest {
+        val started = CompletableDeferred<Unit>()
+        val response = CompletableDeferred<String>()
+        coEvery { LyricsManager.getLyricsLrt(any(), any(), any(), any()) } coAnswers {
+            started.complete(Unit)
+            response.await()
+        }
+        val key = LyricsRepository.keyFor("Song", "Artist")
+        val fetching = async { LyricCache.getOrFetchLyrics(context, "Song", "Artist", "100") }
+        started.await()
+        LyricsRepository.deleteLyrics(context, listOf(key))
+        response.complete("[00:00]network")
+        assertTrue(fetching.await().isEmpty())
+        assertFalse(File(directory, "$key.lrt").exists())
     }
 }

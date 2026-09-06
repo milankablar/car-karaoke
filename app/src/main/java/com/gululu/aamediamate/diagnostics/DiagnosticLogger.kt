@@ -9,6 +9,9 @@ import com.gululu.aamediamate.SettingsManager
 import com.gululu.aamediamate.hasNotificationAccess
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.Executors
+import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 import java.net.URI
 import java.time.Instant
 import java.time.format.DateTimeFormatter
@@ -23,6 +26,11 @@ object DiagnosticLogger {
     private const val MAX_DETAIL_LENGTH = 300
     private val sensitiveKeyRegex = Regex("(?i)(token|api[_-]?key|authorization|password|secret)")
     private val authorizationValueRegex = Regex("(?i)\\b(bearer|basic|token)\\s+[A-Za-z0-9._~+/=-]+")
+    private val writer = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "diagnostic-writer").apply { isDaemon = true }
+    }
+    private val pendingWrites = Semaphore(500)
+    private var writesSinceCompaction = 0
     private val lock = Any()
     private var initialized = false
     private var previousExceptionHandler: Thread.UncaughtExceptionHandler? = null
@@ -41,6 +49,7 @@ object DiagnosticLogger {
                     mapOf("thread" to thread.name),
                     throwable
                 )
+                runCatching { writer.submit {}.get(500, TimeUnit.MILLISECONDS) }
                 previousExceptionHandler?.uncaughtException(thread, throwable)
             }
         }
@@ -120,13 +129,17 @@ object DiagnosticLogger {
         persist(appContext, event)
     }
 
+    @androidx.annotation.WorkerThread
     fun getEvents(context: Context): List<DiagnosticEvent> {
+        writer.submit {}.get()
         return synchronized(lock) {
             readEventsLocked(context.applicationContext ?: context)
         }
     }
 
+    @androidx.annotation.WorkerThread
     fun clear(context: Context) {
+        writer.submit {}.get()
         synchronized(lock) {
             getLogFile(context.applicationContext ?: context)?.delete()
         }
@@ -220,12 +233,22 @@ object DiagnosticLogger {
     }
 
     private fun persist(context: Context, event: DiagnosticEvent) {
+        if (!pendingWrites.tryAcquire()) return
+        writer.execute {
+            try { persistOnWorker(context, event) } finally { pendingWrites.release() }
+        }
+    }
+
+    private fun persistOnWorker(context: Context, event: DiagnosticEvent) {
         synchronized(lock) {
             runCatching {
                 val file = getLogFile(context) ?: return
-                val events = pruneEvents(readEventsLocked(context) + event)
                 file.parentFile?.mkdirs()
-                file.writeText(events.joinToString(separator = "\n", postfix = "\n") { it.toJson().toString() })
+                file.appendText(event.toJson().toString() + "\n")
+                if (++writesSinceCompaction >= 50 || file.length() > 1024 * 1024) {
+                    readEventsLocked(context)
+                    writesSinceCompaction = 0
+                }
             }.onFailure {
                 writeInternalWarning("Failed to persist diagnostic event: ${it.message}")
             }

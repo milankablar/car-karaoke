@@ -33,8 +33,8 @@ fun DonationScreen(billingManager: BillingManager, onBack: () -> Unit) {
     }
 
     // Check actual purchase status
-    val hasTier1 = purchases.any { it.products.contains("donate_tier_1") }
-    val hasTier2 = purchases.any { it.products.contains("donate_tier_2") }
+    val hasTier1 = purchases.any { it.purchaseState == com.android.billingclient.api.Purchase.PurchaseState.PURCHASED && it.products.contains("donate_tier_1") }
+    val hasTier2 = purchases.any { it.purchaseState == com.android.billingclient.api.Purchase.PurchaseState.PURCHASED && it.products.contains("donate_tier_2") }
 
     // Toggle states for visuals (default to true if purchased)
     var isTipEnabled by remember { mutableStateOf(false) }

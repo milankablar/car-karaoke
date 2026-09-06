@@ -10,6 +10,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.File
 
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
 class LyricsRepositorySortTest {
 
     private lateinit var context: Context
@@ -21,23 +22,14 @@ class LyricsRepositorySortTest {
         // Use a temporary directory for tests
         tempDir = java.nio.file.Files.createTempDirectory("lyrics_test").toFile()
         every { context.getExternalFilesDir("lyrics") } returns tempDir
-        resetLyricCacheDir()
+        every { context.filesDir } returns tempDir
+        LyricCache.clearAllMemoryCache()
     }
 
     @After
     fun tearDown() {
         tempDir.deleteRecursively()
-        resetLyricCacheDir()
-    }
-
-    private fun resetLyricCacheDir() {
-        try {
-            val field = LyricCache::class.java.getDeclaredField("lyricsDir")
-            field.isAccessible = true
-            field.set(LyricCache, null)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        LyricCache.clearAllMemoryCache()
     }
 
     @Test

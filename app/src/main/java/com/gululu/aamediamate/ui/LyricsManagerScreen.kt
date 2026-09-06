@@ -81,7 +81,10 @@ fun LyricsManagerScreen(
     val isSelectionMode = selectedKeys.isNotEmpty()
 
     LaunchedEffect(Unit) {
-        fullLyricsList = LyricsRepository.getAllLyrics(context)
+        try {
+            fullLyricsList = LyricsRepository.getAllLyrics(context)
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: Exception) { Toast.makeText(context, e.localizedMessage, Toast.LENGTH_LONG).show() }
     }
 
     val filteredList = remember(fullLyricsList, searchQuery, filterType) {
@@ -245,10 +248,13 @@ fun LyricsManagerScreen(
                     onClick = {
                         showDeleteDialog = false
                         coroutineScope.launch {
-                            LyricsRepository.deleteLyrics(context, selectedKeys.toList())
-                            fullLyricsList = LyricsRepository.getAllLyrics(context)
-                            Toast.makeText(context, context.getString(R.string.deleted_message, selectedKeys.size), Toast.LENGTH_SHORT).show()
-                            selectedKeys = emptySet()
+                            try {
+                                LyricsRepository.deleteLyrics(context, selectedKeys.toList())
+                                fullLyricsList = LyricsRepository.getAllLyrics(context)
+                                Toast.makeText(context, context.getString(R.string.deleted_message, selectedKeys.size), Toast.LENGTH_SHORT).show()
+                                selectedKeys = emptySet()
+                            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                            catch (e: Exception) { Toast.makeText(context, e.localizedMessage, Toast.LENGTH_LONG).show() }
                         }
                     }
                 ) {

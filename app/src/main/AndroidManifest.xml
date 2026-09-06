@@ -7,6 +7,7 @@
     <uses-permission android:name="com.android.vending.BILLING" />
 
     <queries>
+        <package android:name="com.google.android.projection.gearhead" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />

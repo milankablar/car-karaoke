@@ -19,6 +19,7 @@ object MediaBridgeSessionManager {
     private var mediaStateUpdater: MediaStateUpdater? = null
     private var lyricDisplayManager: LyricDisplayManager? = null
     private var currentMediaInfo: MediaInfo? = null
+    private var browserErrorActive = false
     private var mediaInfoListener: ((MediaInfo?) -> Unit)? = null
     private var context: Context? = null
     private val mainHandler: Handler by lazy { Handler(Looper.getMainLooper()) }
@@ -45,6 +46,8 @@ object MediaBridgeSessionManager {
             val isPlaying = state.state == PlaybackState.STATE_PLAYING
             if (
                 isPlaying != info.isPlaying ||
+                state.playbackSpeed != info.playbackSpeed ||
+                abs(MediaInformationRetriever.getCurrentPositionMs(state) - MediaInformationRetriever.getEstimatedPositionMs(info)) > 1_000L ||
                 hasExceededMediaDuration(info, state) ||
                 shouldRefreshPendingStalePosition(info, state)
             ) {
@@ -97,8 +100,8 @@ object MediaBridgeSessionManager {
         mediaStateUpdater = MediaStateUpdater(appContext)
         lyricDisplayManager = LyricDisplayManager(appContext)
 
-        mediaSession = MediaSessionCompat(context, "MediaBridgeSession").apply {
-            setCallback(MediaBridgeMediaCallback(context))
+        mediaSession = MediaSessionCompat(appContext, "MediaBridgeSession").apply {
+            setCallback(MediaBridgeMediaCallback(appContext))
             setFlags(
                 MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
                         MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
@@ -134,10 +137,13 @@ object MediaBridgeSessionManager {
             lyricDisplayManager?.stop()
             mediaInfoListener?.invoke(null)
             currentMediaInfo = null // Ensure we don't hold onto disallowed info
+            browserErrorActive = false
+            MediaBridgeService.refreshBrowserData()
             return
         }
 
         val normalizedInfo = normalizeMediaInfoPosition(previousInfo, info)
+        browserErrorActive = false
         currentMediaInfo = normalizedInfo
         observeSourceController(normalizedInfo)
 
@@ -172,14 +178,62 @@ object MediaBridgeSessionManager {
         MediaBridgeService.refreshBrowserData()
     }
 
+    /** Ends the service-owned session and cancels every callback and lyric task. */
+    fun release() {
+        cancelPendingMediaRefreshes()
+        stopObservingSourceController()
+        clearStalePositionOverride()
+        lyricDisplayManager?.close()
+        lyricDisplayManager = null
+        mediaSession?.setCallback(null)
+        mediaSession?.release()
+        mediaSession = null
+        mediaStateUpdater = null
+        currentMediaInfo = null
+        browserErrorActive = false
+        lastSourceMetadataChangeElapsedRealtimeMs = 0L
+        mediaInfoListener?.invoke(null)
+        context = null
+    }
+
+    /** Coalesces notification and transport events on the service's main thread. */
+    fun requestRefresh(reason: String, delayMs: Long = SOURCE_CALLBACK_REFRESH_DELAY_MS) {
+        if (context != null) scheduleSourceRefresh(reason, delayMs)
+    }
+
+    internal fun isControllerTrusted(): Boolean {
+        val ctx = context ?: return false
+        val caller = runCatching { mediaSession?.currentControllerInfo }.getOrNull() ?: return false
+        return MediaClientValidator.isTrusted(ctx, caller.packageName, caller.uid)
+    }
+
     fun getSessionToken(): MediaSessionCompat.Token? = mediaSession?.sessionToken
+
+    internal fun showBrowserError(message: String) {
+        val session = mediaSession ?: return
+        browserErrorActive = true
+        mediaStateUpdater?.showError(session, message)
+    }
+
+    internal fun clearBrowserError() {
+        if (!browserErrorActive) return
+
+        val session = mediaSession ?: return
+        browserErrorActive = false
+        val info = currentMediaInfo
+        if (info == null) {
+            mediaStateUpdater?.clear(session)
+        } else {
+            mediaStateUpdater?.update(session, info)
+        }
+    }
 
     fun getCurrentMediaPackage(): String? = currentMediaInfo?.appPackageName
 
     /** Rebuilds the active bridged session after a display preference changes. */
     fun refreshCurrentSession(forceLyricsResync: Boolean = false) {
         val ctx = context ?: return
-        val refreshedInfo = MediaInformationRetriever.refreshCurrentMediaInfo(ctx) ?: currentMediaInfo ?: return
+        val refreshedInfo = MediaInformationRetriever.refreshCurrentMediaInfo(ctx)
 
         updateFromMediaInfo(refreshedInfo, forceLyricsResync)
     }
@@ -256,7 +310,7 @@ object MediaBridgeSessionManager {
 
         val ctx = context ?: return
         val positionMs = getCurrentSourcePositionMs(ctx, info)
-        val delayMs = calculateEndOfMediaRefreshDelay(positionMs, info.duration)
+        val delayMs = calculateEndOfMediaRefreshDelay(positionMs, info.duration, info.playbackSpeed)
         DiagnosticLogger.debug(
             ctx,
             DiagnosticModule.MEDIA,
@@ -365,6 +419,9 @@ object MediaBridgeSessionManager {
         nowElapsedRealtimeMs: Long
     ): Boolean {
         if (previousInfo == null || isSameMedia(previousInfo, info)) return false
+        if (previousInfo.appPackageName != info.appPackageName) return false
+        if (previousInfo.title == info.title && previousInfo.artist == info.artist &&
+            (previousInfo.mediaId.isNullOrBlank() || info.mediaId.isNullOrBlank())) return false
         if (!info.isPlaying || info.position <= NEW_MEDIA_STALE_POSITION_THRESHOLD_MS) return false
 
         if (isPlaybackStateOlderThanMetadata(info, lastMetadataChangeElapsedRealtimeMs)) {
@@ -417,7 +474,9 @@ object MediaBridgeSessionManager {
     }
 
     private fun isSameMedia(first: MediaInfo, second: MediaInfo): Boolean {
-        return mediaIdentityKey(first) == mediaIdentityKey(second)
+        return first.appPackageName == second.appPackageName && first.title.trim() == second.title.trim() &&
+            first.artist.trim() == second.artist.trim() &&
+            (first.mediaId.isNullOrBlank() || second.mediaId.isNullOrBlank() || first.mediaId == second.mediaId)
     }
 
     private fun mediaIdentityKey(info: MediaInfo): String {
@@ -425,16 +484,15 @@ object MediaBridgeSessionManager {
             info.appPackageName,
             info.title.trim(),
             info.artist.trim(),
-            info.album.trim(),
-            info.duration.takeIf { it > 0L }?.toString().orEmpty()
+            info.mediaId.orEmpty()
         ).joinToString("|")
     }
 
-    internal fun calculateEndOfMediaRefreshDelay(positionMs: Long, durationMs: Long): Long {
+    internal fun calculateEndOfMediaRefreshDelay(positionMs: Long, durationMs: Long, speed: Float = 1f): Long {
         if (durationMs <= 0L) return MIN_END_OF_MEDIA_REFRESH_DELAY_MS
 
         val remainingMs = durationMs - positionMs.coerceAtLeast(0L)
-        return (remainingMs + END_OF_MEDIA_REFRESH_GRACE_MS)
+        return ((remainingMs / speed.takeIf { it.isFinite() && it > 0f }.let { it ?: 1f }).toLong() + END_OF_MEDIA_REFRESH_GRACE_MS)
             .coerceAtLeast(MIN_END_OF_MEDIA_REFRESH_DELAY_MS)
     }
 

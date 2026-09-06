@@ -154,11 +154,9 @@
     <string name="setup_guidance">Setup Guidance</string>
     <string name="setup_guidance_url">https://github.com/gululu1235/AAMediaMate/blob/main/README_en.md#%EF%B8%8F-lyrics-configuration</string>
     
-    <!--Placeholder-->
-    <string name="no_media_apps_found">No media apps found</string>
-    <string name="permission_required_title">Permission Required</string>
-    <string name="permission_required_subtitle">Please enable notification access on phone</string>
-    <string name="start_playing_music">Play a media on the phone to control them here.</string>
+    <!-- Android Auto errors -->
+    <string name="notification_access_required_car">Notification access is required. Enable it on your phone only when it is safe to do so.</string>
+    <string name="no_active_media_car">No active media found. Start playback on your phone only when it is safe to do so.</string>
     
     <!--Lyrics Providers-->
     <string name="lyrics_settings_title">Lyrics Settings</string>

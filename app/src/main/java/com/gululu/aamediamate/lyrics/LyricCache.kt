@@ -1,152 +1,85 @@
 package com.gululu.aamediamate.lyrics
 
 import android.content.Context
-import android.util.Log
-import com.gululu.aamediamate.diagnostics.DiagnosticLogger
-import com.gululu.aamediamate.diagnostics.DiagnosticModule
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 
 object LyricCache {
-    private val memoryCache = mutableMapOf<String, List<LyricLine>?>()
-    private var lyricsDir: File? = null
+    // Raw text keeps simplified/traditional conversion independent of the cache.
+    private val memoryCache = object : LinkedHashMap<String, String>(32, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean = size > 64
+    }
+    private const val MISS_TTL_MS = 60 * 60_000L
+
     fun getLyricsDir(context: Context): File {
-        if (lyricsDir == null)
-        {
-            val dir = context.getExternalFilesDir("lyrics")!!
-            if (!dir.exists()) dir.mkdirs()
-            lyricsDir = dir
-        }
-
-        return lyricsDir!!
+        val dir = context.getExternalFilesDir("lyrics") ?: File(context.filesDir, "lyrics")
+        if (!dir.isDirectory && !dir.mkdirs()) throw IOException("Lyrics storage is unavailable")
+        com.gululu.aamediamate.backup.BackupTransaction.recover(context, dir)
+        return dir
     }
 
-    private fun sanitizeFileName(input: String): String {
-        return input.replace(Regex("[\\\\/:*?\"<>|]"), "_")
-    }
-
-    private fun getLyricFile(context: Context, title: String, artist: String): File {
-        return File(getLyricsDir(context), "${sanitizeFileName(title)}_${sanitizeFileName(artist)}.lrt")
-    }
-
-    suspend fun getOrFetchLyrics(context: Context, title: String, artist: String, duration: String): List<LyricLine> {
-        val key = title+"_" +artist
-        Log.d("MediaBridge", "🎤 Getting lyrics for: $title by $artist")
-        DiagnosticLogger.info(
-            context,
-            DiagnosticModule.LYRICS,
-            "Getting lyrics",
-            mapOf("title" to title, "artist" to artist, "duration" to duration)
-        )
-
-        val file = getLyricFile(context, title, artist)
-
-        if (memoryCache.containsKey(key)) {
-            Log.d("MediaBridge", "🎤 Reading from mem cache")
-            DiagnosticLogger.info(
-                context,
-                DiagnosticModule.LYRICS,
-                "Lyric memory cache hit",
-                mapOf("title" to title, "artist" to artist)
-            )
-            val cached = memoryCache[key]
-            if (file.exists()) {
-                file.setLastModified(System.currentTimeMillis())
-            }
-            return cached ?: emptyList()
-        }
-
-        if (file.exists()) {
-            val lrcContent = file.readText()
-            Log.d("MediaBridge", "🎤 Reading from file: $file")
-            DiagnosticLogger.info(
-                context,
-                DiagnosticModule.LYRICS,
-                "Lyric file cache hit",
-                mapOf("title" to title, "artist" to artist, "bytes" to lrcContent.toByteArray().size)
-            )
-
-            if (lrcContent.isBlank()) {
-                Log.d("MediaBridge", "🎤 Reading from file, but no lyrics found.")
-                DiagnosticLogger.info(
-                    context,
-                    DiagnosticModule.LYRICS,
-                    "Cached lyric miss marker found",
-                    mapOf("title" to title, "artist" to artist)
-                )
-                memoryCache[key] = null
-                file.setLastModified(System.currentTimeMillis())
-                return emptyList()
-            }
-
-            val lyrics = LyricsManager.parseLrc(context, lrcContent)
-            memoryCache[key] = lyrics
-            Log.d("MediaBridge", "🎤 Loaded ${lyrics.size} lines from cache")
-            DiagnosticLogger.info(
-                context,
-                DiagnosticModule.LYRICS,
-                "Parsed cached lyrics",
-                mapOf("title" to title, "artist" to artist, "lineCount" to lyrics.size)
-            )
-            file.setLastModified(System.currentTimeMillis())
-            return lyrics
-        }
-
-        Log.d("MediaBridge", "🎤 Fetching lyrics from network...")
-        DiagnosticLogger.info(
-            context,
-            DiagnosticModule.LYRICS,
-            "Fetching lyrics from providers",
-            mapOf("title" to title, "artist" to artist)
-        )
-        val lrcContent = LyricsManager.getLyricsLrt(context, title, artist, duration)
-        Log.d("MediaBridge", "🎤 Network fetch returned ${lrcContent?.toByteArray()?.size ?: 0} byte(s)")
-        if (!lrcContent.isNullOrBlank()) {
-            val lyrics = LyricsManager.parseLrc(context, lrcContent)
-            Log.d("MediaBridge", "🎤 Parsed ${lyrics.size} lyric line(s)")
-            if (lyrics.isNotEmpty()) {
-                memoryCache[key] = lyrics
-                file.writeText(lrcContent)
-                Log.d("MediaBridge", "🎤 Saved ${lyrics.size} lines to file")
-                DiagnosticLogger.info(
-                    context,
-                    DiagnosticModule.LYRICS,
-                    "Fetched and cached lyrics",
-                    mapOf("title" to title, "artist" to artist, "lineCount" to lyrics.size)
-                )
-                return lyrics
-            } else {
-                memoryCache[key] = null
-                withContext(Dispatchers.IO) {
-                    file.createNewFile()
+    /** Loads lyrics without holding the storage lock during network IO. */
+    suspend fun getOrFetchLyrics(context: Context, title: String, artist: String, duration: String): List<LyricLine> =
+        withContext(Dispatchers.IO) {
+            val key = LyricsStorage.keyFor(title, artist)
+            var revision = 0L
+            val cached = LyricsStorage.mutex.withLock {
+                val file = LyricsStorage.file(context, key)
+                LyricsStorage.rememberIdentity(context, key, title, artist)
+                val legacyKey = "${title}_${artist}".replace(Regex("""[\\/:*?"<>|]"""), "_")
+                val legacy = LyricsStorage.file(context, legacyKey)
+                if (!file.exists() && legacy.exists()) {
+                    LyricsStorage.write(file, LyricsStorage.read(legacy))
+                    legacy.delete()
                 }
-                Log.d("MediaBridge", "🎤 Failed to parse lyrics")
-                DiagnosticLogger.warn(
-                    context,
-                    DiagnosticModule.LYRICS,
-                    "Fetched lyrics could not be parsed",
-                    mapOf("title" to title, "artist" to artist, "bytes" to lrcContent.toByteArray().size)
-                )
-                return emptyList()
+                revision = LyricsStorage.revision
+                readCached(context, key, file)
             }
-        } else {
-            memoryCache[key] = null
-            withContext(Dispatchers.IO) {
-                file.createNewFile()
+            if (cached != null) return@withContext LyricsManager.parseLrc(context, cached)
+
+            val fetched = LyricsManager.getLyricsLrt(context, title, artist, duration)
+            currentCoroutineContext().ensureActive()
+            val content = LyricsStorage.mutex.withLock {
+                currentCoroutineContext().ensureActive()
+                val file = LyricsStorage.file(context, key)
+                // An edit/delete/restore wins over an in-flight fetch.
+                if (revision != LyricsStorage.revision) {
+                    return@withLock if (file.exists()) LyricsStorage.read(file) else ""
+                }
+                val text = fetched.orEmpty()
+                LyricsStorage.write(file, text)
+                val metadata = LyricsStorage.metadata(context, key)
+                metadata.remove("manual")
+                metadata.put("retryAfter", if (text.isEmpty()) System.currentTimeMillis() + MISS_TTL_MS else 0L)
+                LyricsStorage.write(LyricsStorage.file(context, key, "json"), metadata.toString())
+                synchronized(memoryCache) { memoryCache[file.absolutePath] = text }
+                text
             }
-            Log.d("MediaBridge", "🎤 No lyrics found from network")
-            DiagnosticLogger.warn(
-                context,
-                DiagnosticModule.LYRICS,
-                "No lyrics found from providers",
-                mapOf("title" to title, "artist" to artist)
-            )
-            return emptyList()
+            LyricsManager.parseLrc(context, content)
         }
+
+    private fun readCached(context: Context, key: String, file: File): String? {
+        if (!file.exists()) return null
+        val content = synchronized(memoryCache) { memoryCache[file.absolutePath] } ?: LyricsStorage.read(file)
+        if (content.isEmpty()) {
+            val metadata = LyricsStorage.metadata(context, key)
+            if (!metadata.optBoolean("manual") && metadata.optLong("retryAfter") <= System.currentTimeMillis()) return null
+        }
+        synchronized(memoryCache) { memoryCache[file.absolutePath] = content }
+        file.setLastModified(System.currentTimeMillis())
+        return content
     }
 
     fun clearMemoryCache(key: String) {
-        memoryCache.remove(key)
+        synchronized(memoryCache) { memoryCache.keys.removeAll { File(it).name == "$key.lrt" } }
+    }
+
+    fun clearAllMemoryCache() {
+        synchronized(memoryCache) { memoryCache.clear() }
     }
 }

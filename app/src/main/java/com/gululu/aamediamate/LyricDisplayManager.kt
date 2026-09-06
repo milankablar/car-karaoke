@@ -4,144 +4,93 @@ import android.content.Context
 import android.os.PowerManager
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
-import android.util.Log
+import androidx.annotation.MainThread
 import com.gululu.aamediamate.diagnostics.DiagnosticLogger
 import com.gululu.aamediamate.diagnostics.DiagnosticModule
 import com.gululu.aamediamate.lyrics.LyricCache
 import com.gululu.aamediamate.lyrics.LyricSyncEngine
 import com.gululu.aamediamate.lyrics.LyricsRepository
-import com.gululu.aamediamate.models.MediaInfo
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import com.gululu.aamediamate.models.MediaInfo
 
-class LyricDisplayManager(private val context: Context) {
-
-    private val lyricsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+/** Owns lyric work for one service; all state and metadata writes stay on the main thread. */
+class LyricDisplayManager(
+    private val context: Context,
+    private val lyricsScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+) {
     private var currentLyricsJob: Job? = null
-    private val lyricsJobMutex = Mutex()
     private var lyricsUpdateJob: Job? = null
-    private var currentMediaInfo: MediaInfo? = null
+    private var generation = 0L
+    private var wakeLock: PowerManager.WakeLock? = null
 
-    private val wakeLock: PowerManager.WakeLock by lazy {
-        (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
-            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AAMediaMate:LyricSync")
-            .apply { setReferenceCounted(false) }
-    }
-
+    @MainThread
     fun start(mediaSession: MediaSessionCompat, info: MediaInfo) {
-        val globalLyricsEnabled = SettingsManager.getLyricsEnabled(context)
-        val appLyricsEnabled = SettingsManager.isAppLyricsEnabled(context, info.appPackageName)
-        
-        if (!globalLyricsEnabled || !appLyricsEnabled || !info.isPlaying || info.title.isBlank() || info.artist.isBlank()) {
-            if (!globalLyricsEnabled) {
-                Log.d("MediaBridge", "🚫 Lyrics globally disabled")
-                DiagnosticLogger.info(context, DiagnosticModule.LYRICS, "Lyrics globally disabled")
-            } else if (!appLyricsEnabled) {
-                Log.d("MediaBridge", "🚫 Lyrics disabled for app: ${info.appPackageName}")
-                DiagnosticLogger.info(
-                    context,
-                    DiagnosticModule.LYRICS,
-                    "Lyrics disabled for app",
-                    mapOf("package" to info.appPackageName)
-                )
-            }
-            stop()
-            return
-        }
-        
-        Log.d("MediaBridge", "🎵 Starting lyrics for: ${info.appPackageName} - ${info.title} by ${info.artist}")
-        DiagnosticLogger.info(
-            context,
-            DiagnosticModule.LYRICS,
-            "Starting lyric display",
-            mapOf(
-                "package" to info.appPackageName,
-                "title" to info.title,
-                "artist" to info.artist,
-                "durationMs" to info.duration
-            )
-        )
-        currentMediaInfo = info
-        if (!wakeLock.isHeld) wakeLock.acquire()
-
-        // Start observing lyric updates
-        lyricsUpdateJob?.cancel() // Cancel any previous observation
+        stop()
+        if (!SettingsManager.getLyricsEnabled(context) ||
+            !SettingsManager.isAppLyricsEnabled(context, info.appPackageName) ||
+            !info.isPlaying || info.playbackSpeed <= 0f || info.title.isBlank() || info.artist.isBlank()
+        ) return
+        val requestGeneration = generation
+        val key = LyricsRepository.keyFor(info.title, info.artist)
         lyricsUpdateJob = lyricsScope.launch {
-            val observedMediaInfo = info // Capture the media info that started this observation
-            LyricsRepository.lyricsUpdatedFlow.collectLatest { updatedKey ->
-                val currentKey = "${observedMediaInfo.title}_${observedMediaInfo.artist}"
-                if (updatedKey == currentKey) {
-                    Log.d("MediaBridge", "🎤 Lyrics for current song updated. Restarting lyric display.")
-                    DiagnosticLogger.info(
-                        context,
-                        DiagnosticModule.LYRICS,
-                        "Current song lyrics updated",
-                        mapOf("title" to observedMediaInfo.title, "artist" to observedMediaInfo.artist)
-                    )
-                    // Stop internal components and restart to refresh with new lyrics
-                    stopInternal()
-                    start(mediaSession, observedMediaInfo)
+            LyricsRepository.lyricsUpdatedFlow.collect { updatedKey ->
+                if (updatedKey == key || updatedKey == LyricsRepository.ALL_LYRICS) {
+                    MediaBridgeSessionManager.refreshCurrentSession(forceLyricsResync = true)
                 }
             }
         }
-
-        lyricsScope.launch {
-            lyricsJobMutex.withLock {
-                currentLyricsJob?.cancelAndJoin()
-                currentLyricsJob = launch {
-                    val lyrics = LyricCache.getOrFetchLyrics(
-                        context,
-                        info.title,
-                        info.artist,
-                        info.duration.toString()
-                    )
-
-                    if (lyrics.isEmpty()) {
-                        Log.d("MediaBridge", "🚫 Lyrics not found: ${info.title}")
-                        DiagnosticLogger.warn(
-                            context,
-                            DiagnosticModule.LYRICS,
-                            "Lyrics not found for display",
-                            mapOf("title" to info.title, "artist" to info.artist)
-                        )
-                        updateLyricLine(mediaSession, info, "", null) // Clear the displayed lyric
-                        return@launch
-                    }
-
-                    val currentPosition = MediaInformationRetriever.getEstimatedPositionMs(info)
-                    val offsetMs = SettingsManager.getLyricsTimingOffset(context).toLong()
-                    DiagnosticLogger.info(
-                        context,
-                        DiagnosticModule.LYRICS,
-                        "Lyric sync starting",
-                        mapOf("lineCount" to lyrics.size, "positionMs" to currentPosition, "offsetMs" to offsetMs)
-                    )
-
-                    LyricSyncEngine.start(lyrics, currentPosition, offsetMs) { line, nextLine ->
-                        updateLyricLine(mediaSession, info, line, nextLine)
-                    }
+        currentLyricsJob = lyricsScope.launch {
+            try {
+                val lyrics = LyricCache.getOrFetchLyrics(context, info.title, info.artist, info.duration.toString())
+                ensureActive()
+                if (requestGeneration != generation) return@launch
+                if (lyrics.isEmpty()) {
+                    updateLyricLine(mediaSession, info, "", null)
+                    return@launch
                 }
+                val position = MediaInformationRetriever.getEstimatedPositionMs(info)
+                val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AAMediaMate:LyricSync")?.apply {
+                    setReferenceCounted(false)
+                    val remaining = ((lyrics.last().timeSec * 1000 - position).coerceAtLeast(0f) / info.playbackSpeed).toLong()
+                    acquire((remaining + 60_000).coerceIn(60_000, 6 * 60 * 60_000))
+                }
+                LyricSyncEngine.sync(
+                    lyrics, position, SettingsManager.getLyricsTimingOffset(context).toLong(), info.playbackSpeed
+                ) { line, nextLine ->
+                    if (requestGeneration == generation) updateLyricLine(mediaSession, info, line, nextLine)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                DiagnosticLogger.error(context, DiagnosticModule.LYRICS, "Lyric display failed", throwable = e)
+                if (requestGeneration == generation) updateLyricLine(mediaSession, info, "", null)
+            } finally {
+                if (requestGeneration == generation) releaseWakeLock()
             }
         }
     }
 
+    @MainThread
     fun stop() {
-        stopInternal()
+        generation++
+        currentLyricsJob?.cancel()
+        currentLyricsJob = null
         lyricsUpdateJob?.cancel()
-        currentMediaInfo = null
-        if (wakeLock.isHeld) wakeLock.release()
+        lyricsUpdateJob = null
+        releaseWakeLock()
     }
 
-    private fun stopInternal() {
-        LyricSyncEngine.stop()
-        runBlocking {
-            lyricsJobMutex.withLock {
-                currentLyricsJob?.cancel()
-                currentLyricsJob = null
-            }
-        }
+    /** Releases all work owned by the destroyed service. */
+    @MainThread
+    fun close() {
+        stop()
+        lyricsScope.cancel()
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
     }
 
     private fun updateLyricLine(mediaSession: MediaSessionCompat, originalInfo: MediaInfo, lyricLine: String, nextLyricLine: String?) {

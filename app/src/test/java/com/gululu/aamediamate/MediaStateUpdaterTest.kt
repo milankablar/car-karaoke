@@ -65,6 +65,20 @@ class MediaStateUpdaterTest {
         assertEquals(0.0f, playbackState.captured.playbackSpeed, 0.0f)
     }
 
+    @Test
+    fun `showError publishes a non-playing app error`() {
+        updater.showError(mediaSession, "Use the phone only when safe")
+
+        val playbackState = slot<PlaybackStateCompat>()
+        verify { mediaSession.setPlaybackState(capture(playbackState)) }
+
+        assertEquals(PlaybackStateCompat.STATE_ERROR, playbackState.captured.state)
+        assertEquals(PlaybackStateCompat.ERROR_CODE_APP_ERROR, playbackState.captured.errorCode)
+        assertEquals("Use the phone only when safe", playbackState.captured.errorMessage)
+        assertEquals(0.0f, playbackState.captured.playbackSpeed, 0.0f)
+        verify { mediaSession.setMetadata(null) }
+    }
+
     private fun capturedMetadata(): MediaMetadataCompat {
         val metadata = slot<MediaMetadataCompat>()
         verify { mediaSession.setMetadata(capture(metadata)) }

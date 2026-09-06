@@ -70,7 +70,7 @@ class MediaStateUpdater(private val context: Context) {
         stateBuilder.setState(
                 if (info.isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
                 info.position,
-                if (info.isPlaying) 1.0f else 0.0f
+                if (info.isPlaying) info.playbackSpeed else 0.0f
             )
         mediaSession.setPlaybackState(stateBuilder.build())
     }
@@ -83,6 +83,17 @@ class MediaStateUpdater(private val context: Context) {
         )
         mediaSession.setMetadata(null)
         Log.d("MediaBridge", "Reset session states.")
+    }
+
+    internal fun showError(mediaSession: MediaSessionCompat, message: String) {
+        mediaSession.setMetadata(null)
+        mediaSession.setPlaybackState(
+            PlaybackStateCompat.Builder()
+                .setState(PlaybackStateCompat.STATE_ERROR, 0L, 0.0f)
+                .setErrorMessage(PlaybackStateCompat.ERROR_CODE_APP_ERROR, message)
+                .build()
+        )
+        Log.w("MediaBridge", "Media browser error: $message")
     }
 
     private fun createRewindAction(): PlaybackStateCompat.CustomAction {

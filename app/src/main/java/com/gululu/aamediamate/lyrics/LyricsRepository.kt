@@ -6,103 +6,94 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.io.File
+import java.io.IOException
 
 object LyricsRepository {
-    private val _lyricsUpdatedFlow = MutableSharedFlow<String>()
+    const val ALL_LYRICS = "*"
+    private val _lyricsUpdatedFlow = MutableSharedFlow<String>(
+        extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
     val lyricsUpdatedFlow: SharedFlow<String> = _lyricsUpdatedFlow.asSharedFlow()
 
-    suspend fun getAllLyrics(context: Context): List<LyricsEntry> = withContext(Dispatchers.IO) {
-        val lyricsDir = LyricCache.getLyricsDir(context)
-        if (!lyricsDir.exists()) return@withContext emptyList()
+    fun keyFor(title: String, artist: String): String = LyricsStorage.keyFor(title, artist)
 
-        lyricsDir.listFiles()
-            ?.filter { it.isFile && it.name.endsWith(".lrt") }
-            ?.map { file ->
-                val key = file.name.removeSuffix(".lrt")
-                val (title, artist) = key.split("_", limit = 2).let {
-                    if (it.size == 2) it else listOf(key, "")
-                }
-                LyricsEntry(
-                    key = key,
-                    title = title,
-                    artist = artist,
-                    hasLyrics = file.length() > 0,
-                    lastModified = file.lastModified()
-                )
-            }
-            ?.sortedByDescending { it.lastModified }
-            ?: emptyList()
+    suspend fun identity(context: Context, key: String): Pair<String, String> = withContext(Dispatchers.IO) {
+        LyricsStorage.mutex.withLock { readIdentity(context, key) }
+    }
+
+    private fun readIdentity(context: Context, key: String): Pair<String, String> {
+        val metadata = LyricsStorage.metadata(context, key)
+        if (metadata.has("title") && metadata.has("artist")) return metadata.optString("title") to metadata.optString("artist")
+        val parts = key.split("_", limit = 2)
+        return parts[0] to parts.getOrElse(1) { "" }
+    }
+
+    suspend fun getAllLyrics(context: Context): List<LyricsEntry> = withContext(Dispatchers.IO) {
+        LyricsStorage.mutex.withLock {
+            LyricCache.getLyricsDir(context).listFiles().orEmpty()
+                .filter { it.isFile && it.name.endsWith(".lrt") }
+                .map { file ->
+                    val key = file.name.removeSuffix(".lrt")
+                    val (title, artist) = readIdentity(context, key)
+                    LyricsEntry(key, title, artist, file.length() > 0, file.lastModified())
+                }.sortedByDescending { it.lastModified }
+        }
     }
 
     suspend fun deleteLyrics(context: Context, keys: List<String>) = withContext(Dispatchers.IO) {
-        val lyricsDir = LyricCache.getLyricsDir(context)
-        for (key in keys) {
-            val file = File(lyricsDir, "$key.lrt")
-            if (file.exists()) {
-                file.delete()
+        LyricsStorage.mutex.withLock {
+            keys.forEach { key ->
+                listOf("lrt", "json").forEach { extension ->
+                    val file = LyricsStorage.file(context, key, extension)
+                    if (file.exists() && !file.delete()) throw IOException("Could not delete lyrics")
+                }
+                LyricCache.clearMemoryCache(key)
             }
+            LyricsStorage.revision++
+        }
+        _lyricsUpdatedFlow.tryEmit(ALL_LYRICS)
+    }
+
+    suspend fun loadLyricsText(context: Context, key: String): String = withContext(Dispatchers.IO) {
+        LyricsStorage.mutex.withLock {
+            val file = LyricsStorage.file(context, key)
+            if (file.exists()) LyricsStorage.read(file) else ""
+        }
+    }
+
+    suspend fun saveLyricsText(context: Context, key: String, content: String) = withContext(Dispatchers.IO) {
+        LyricsStorage.mutex.withLock {
+            val metadata = LyricsStorage.metadata(context, key).put("manual", true)
+            LyricsStorage.write(LyricsStorage.file(context, key, "json"), metadata.toString())
+            LyricsStorage.write(LyricsStorage.file(context, key), content)
             LyricCache.clearMemoryCache(key)
+            LyricsStorage.revision++
         }
-    }
-
-    suspend fun loadLyricsText(context: Context, key: String): String {
-        val lyricsDir = LyricCache.getLyricsDir(context)
-        val file = File(lyricsDir, "$key.lrt")
-        return if (file.exists()) {
-            file.readText()
-        } else {
-            ""
-        }
-    }
-
-    suspend fun saveLyricsText(context: Context, key: String, content: String) {
-        val lyricsDir = LyricCache.getLyricsDir(context)
-        val file = File(lyricsDir, "$key.lrt")
-        file.parentFile?.mkdirs()
-        file.writeText(content)
-        LyricCache.clearMemoryCache(key)
-        _lyricsUpdatedFlow.emit(key)
+        _lyricsUpdatedFlow.tryEmit(ALL_LYRICS)
     }
 
     suspend fun notifyLyricsUpdated(key: String) {
-        LyricCache.clearMemoryCache(key)
-        _lyricsUpdatedFlow.emit(key)
+        LyricsStorage.mutex.withLock {
+            LyricCache.clearMemoryCache(key)
+            LyricsStorage.revision++
+        }
+        _lyricsUpdatedFlow.tryEmit(ALL_LYRICS)
     }
 
     suspend fun shiftLyricsByMs(context: Context, keys: List<String>, deltaMs: Long) = withContext(Dispatchers.IO) {
-        if (keys.isEmpty()) return@withContext
-
-        val pattern = Regex("\\[(\\\\d+):(\\\\d+(?:\\\\.\\\\d+)?)]")
-
-        fun formatTime(totalSec: Float): String {
-            val clamped = if (totalSec < 0f) 0f else totalSec
-            val minutes = kotlin.math.floor((clamped / 60f).toDouble()).toInt()
-            val seconds = clamped - minutes * 60f
-            // format with two decimals
-            return String.format("[%02d:%05.2f]", minutes, seconds)
-        }
-
-        val lyricsDir = LyricCache.getLyricsDir(context)
-
-        keys.forEach { key ->
-            val file = File(lyricsDir, "$key.lrt")
-            if (!file.exists() || file.length() == 0L) return@forEach
-
-            val original = file.readText()
-            val shifted = original.lineSequence().joinToString("\n") { line ->
-                pattern.replace(line) { match ->
-                    val min = match.groupValues[1].toIntOrNull() ?: return@replace match.value
-                    val sec = match.groupValues[2].toFloatOrNull() ?: return@replace match.value
-                    val total = min * 60f + sec + (deltaMs / 1000f)
-                    formatTime(total)
+        LyricsStorage.mutex.withLock {
+            keys.forEach { key ->
+                val file = LyricsStorage.file(context, key)
+                if (file.exists()) {
+                    LyricsStorage.write(file, LrcFormat.shift(LyricsStorage.read(file), deltaMs))
+                    LyricCache.clearMemoryCache(key)
                 }
             }
-
-            file.writeText(shifted)
-            LyricCache.clearMemoryCache(key)
-            _lyricsUpdatedFlow.emit(key)
+            LyricsStorage.revision++
         }
+        _lyricsUpdatedFlow.tryEmit(ALL_LYRICS)
     }
 }

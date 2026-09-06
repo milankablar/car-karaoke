@@ -49,7 +49,9 @@ object MediaInformationRetriever {
                 isPlaying = state.state == PlaybackState.STATE_PLAYING,
                 albumArt = albumArt,
                 playbackStateUpdateTimeMs = state.lastPositionUpdateTime,
-                retrievedAtElapsedRealtimeMs = retrievedAtMs
+                retrievedAtElapsedRealtimeMs = retrievedAtMs,
+                playbackSpeed = state.playbackSpeed.takeIf { it.isFinite() && it >= 0f } ?: 1f,
+                mediaId = metadata.getString(MediaMetadata.METADATA_KEY_MEDIA_ID)
             )
 
             Log.d("MediaBridge", "🔄 Updating media info：$mediaInfo")
@@ -107,7 +109,9 @@ object MediaInformationRetriever {
             isPlaying = state.state == PlaybackState.STATE_PLAYING,
             albumArt = albumArt,
             playbackStateUpdateTimeMs = state.lastPositionUpdateTime,
-            retrievedAtElapsedRealtimeMs = retrievedAtMs
+            retrievedAtElapsedRealtimeMs = retrievedAtMs,
+                playbackSpeed = state.playbackSpeed.takeIf { it.isFinite() && it >= 0f } ?: 1f,
+                mediaId = metadata.getString(MediaMetadata.METADATA_KEY_MEDIA_ID)
         )
     }
 
@@ -142,7 +146,7 @@ object MediaInformationRetriever {
         if (!info.isPlaying || info.retrievedAtElapsedRealtimeMs <= 0L) return position
 
         val elapsedMs = (nowElapsedRealtimeMs - info.retrievedAtElapsedRealtimeMs).coerceAtLeast(0L)
-        return (position + elapsedMs).coerceAtLeast(0L)
+        return (position + (elapsedMs * info.playbackSpeed.toDouble()).roundToLong()).coerceAtLeast(0L)
     }
 
     private fun composeAlbumArtWithAppIconFixed(

@@ -91,6 +91,27 @@ class MediaBridgeSessionManagerTest {
         assertFalse(stale)
     }
 
+    @Test
+    fun `metadata enrichment does not reset current playback`() {
+        val previous = mediaInfo("Song", 60_000, 1_000, 60_000).copy(album = "", duration = 0)
+        val enriched = previous.copy(album = "Album", duration = 180_000, mediaId = "id")
+        assertFalse(MediaBridgeSessionManager.shouldTreatPositionAsStaleAfterMediaChange(previous, enriched, 60_000, 60_000))
+    }
+
+    @Test
+    fun `switching source does not reset resumed playback`() {
+        val previous = mediaInfo("Old", 60_000)
+        val resumed = mediaInfo("Song", 60_000).copy(appPackageName = "other.app")
+        assertFalse(MediaBridgeSessionManager.shouldTreatPositionAsStaleAfterMediaChange(previous, resumed, 90_000, 90_000))
+    }
+
+    @Test
+    fun `playback speed affects estimated position and end scheduling`() {
+        val info = mediaInfo("Song", 30_000, retrievedAtElapsedRealtimeMs = 10_000).copy(playbackSpeed = 2f)
+        assertEquals(50_000L, MediaInformationRetriever.getEstimatedPositionMs(info, 20_000))
+        assertEquals(16_000L, MediaBridgeSessionManager.calculateEndOfMediaRefreshDelay(90_000, 120_000, 2f))
+    }
+
     private fun mediaInfo(
         title: String,
         position: Long,

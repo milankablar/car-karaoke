@@ -33,14 +33,16 @@ fun ManualLyricsSearchScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    val (initialTitle, initialArtist) = remember(lyricsKey) {
-        lyricsKey.split("_", limit = 2).let {
-            if (it.size == 2) it[0] to it[1] else it[0] to ""
-        }
+    var title by remember { mutableStateOf("") }
+    var artist by remember { mutableStateOf("") }
+    LaunchedEffect(lyricsKey) {
+        try {
+            val identity = LyricsRepository.identity(context, lyricsKey)
+            title = identity.first
+            artist = identity.second
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: Exception) { Toast.makeText(context, e.localizedMessage, Toast.LENGTH_LONG).show() }
     }
-
-    var title by remember { mutableStateOf(initialTitle) }
-    var artist by remember { mutableStateOf(initialArtist) }
     var searchResult by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -67,9 +69,12 @@ fun ManualLyricsSearchScreen(
                     if (searchResult != null) {
                         IconButton(onClick = {
                             coroutineScope.launch {
-                                LyricsRepository.saveLyricsText(context, lyricsKey, searchResult!!)
-                                Toast.makeText(context, context.getString(R.string.lyrics_saved), Toast.LENGTH_SHORT).show()
-                                onBack()
+                                try {
+                                    LyricsRepository.saveLyricsText(context, lyricsKey, searchResult ?: return@launch)
+                                    Toast.makeText(context, context.getString(R.string.lyrics_saved), Toast.LENGTH_SHORT).show()
+                                    onBack()
+                                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                                catch (e: Exception) { message = e.localizedMessage }
                             }
                         }) {
                             Icon(Icons.Default.Done, contentDescription = stringResource(id = R.string.save))
@@ -140,13 +145,17 @@ fun ManualLyricsSearchScreen(
                             isLoading = true
                             message = null
                             searchResult = null
-                            val result = selectedProvider!!.provider.getLyricsLrc(context, title, artist, "")
-                            if (result.isNullOrBlank()) {
-                                message = context.getString(R.string.lyrics_not_found)
-                            } else {
-                                searchResult = result
-                            }
-                            isLoading = false
+                            try {
+                                val provider = selectedProvider ?: return@launch
+                                val result = provider.provider.getLyricsLrc(context, title, artist, "")
+                                if (result.isNullOrBlank()) {
+                                    message = context.getString(R.string.lyrics_not_found)
+                                } else {
+                                    searchResult = result
+                                }
+                            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                            catch (e: Exception) { message = e.localizedMessage }
+                            finally { isLoading = false }
                         }
                     }
                 },

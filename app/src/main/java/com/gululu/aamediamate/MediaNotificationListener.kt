@@ -1,8 +1,6 @@
 package com.gululu.aamediamate
 
 import android.app.Notification
-import android.os.Handler
-import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -10,6 +8,16 @@ import com.gululu.aamediamate.diagnostics.DiagnosticLogger
 import com.gululu.aamediamate.diagnostics.DiagnosticModule
 
 class MediaNotificationListener : NotificationListenerService() {
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        MediaBridgeSessionManager.requestRefresh("Notification listener connected")
+    }
+
+    override fun onListenerDisconnected() {
+        MediaBridgeSessionManager.updateFromMediaInfo(null)
+        super.onListenerDisconnected()
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.notification.category != Notification.CATEGORY_TRANSPORT) return
 
@@ -26,6 +34,7 @@ class MediaNotificationListener : NotificationListenerService() {
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
+        if (sbn.notification.category != Notification.CATEGORY_TRANSPORT) return
         DiagnosticLogger.debug(
             this,
             DiagnosticModule.MEDIA,
@@ -37,11 +46,6 @@ class MediaNotificationListener : NotificationListenerService() {
 
     private fun sync()
     {
-        Handler(Looper.getMainLooper()).postDelayed({
-            MediaBridgeSessionManager.updateFromMediaInfo(MediaInformationRetriever.refreshCurrentMediaInfo(this))
-            
-            // Directly refresh browser data
-            MediaBridgeService.refreshBrowserData()
-        }, 1000)
+        MediaBridgeSessionManager.requestRefresh("Media notification changed", 250L)
     }
 }

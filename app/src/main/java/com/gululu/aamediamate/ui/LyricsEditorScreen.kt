@@ -13,11 +13,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import com.gululu.aamediamate.R
 import com.gululu.aamediamate.lyrics.LyricsRepository
 import kotlinx.coroutines.launch
@@ -36,25 +33,57 @@ fun LyricsEditorScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    var content by remember { mutableStateOf("") }
-    var isLoaded by remember { mutableStateOf(false) }
+    val activity = context as androidx.activity.ComponentActivity
+    val editor = remember(activity, lyricsKey) {
+        androidx.lifecycle.ViewModelProvider(activity)[lyricsKey, LyricsEditorViewModel::class.java]
+    }
+    var content by editor.content
+    var isLoaded by editor.isLoaded
     var showMenu by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
 
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, lyricsKey) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                coroutineScope.launch {
-                    val text = LyricsRepository.loadLyricsText(context, lyricsKey)
-                    content = text
-                    if (!isLoaded) isLoaded = true
+    LaunchedEffect(lyricsKey) {
+        try {
+            if (!isLoaded || content == editor.savedContent) {
+                content = LyricsRepository.loadLyricsText(context, lyricsKey)
+                editor.savedContent = content
+                isLoaded = true
+            }
+            LyricsRepository.lyricsUpdatedFlow.collect {
+                // External/manual-search saves refresh a clean editor, never overwrite a draft.
+                if (content == editor.savedContent) {
+                    content = LyricsRepository.loadLyricsText(context, lyricsKey)
+                    editor.savedContent = content
                 }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            error = e.localizedMessage
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
+    }
+
+    fun save(value: String, closeEditor: Boolean = true) {
+        coroutineScope.launch {
+            try {
+                LyricsRepository.saveLyricsText(context, lyricsKey, value)
+                editor.savedContent = value
+                content = value
+                if (closeEditor) onBack()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error = e.localizedMessage
+            }
         }
+    }
+
+    if (error != null) {
+        AlertDialog(
+            onDismissRequest = { error = null },
+            text = { Text(error.orEmpty()) },
+            confirmButton = { TextButton(onClick = { error = null }) { Text(stringResource(R.string.confirm)) } }
+        )
     }
 
     Scaffold(
@@ -68,24 +97,7 @@ fun LyricsEditorScreen(
                 },
                 actions = {
                     TextButton(onClick = {
-                        fun shift(contentText: String, deltaMs: Long): String {
-                            val pattern = Regex("""\[(\d+):(\d+(?:\.\d+)?)]""")
-                            fun format(totalSec: Float): String {
-                                val clamped = if (totalSec < 0f) 0f else totalSec
-                                val minutes = kotlin.math.floor((clamped / 60f).toDouble()).toInt()
-                                val seconds = clamped - minutes * 60f
-                                return String.format("[%02d:%05.2f]", minutes, seconds)
-                            }
-                            return contentText.lineSequence().joinToString("\n") { line ->
-                                pattern.replace(line) { m ->
-                                    val min = m.groupValues[1].toIntOrNull() ?: return@replace m.value
-                                    val sec = m.groupValues[2].toFloatOrNull() ?: return@replace m.value
-                                    val total = min * 60f + sec + (deltaMs / 1000f)
-                                    format(total)
-                                }
-                            }
-                        }
-                        content = shift(content, -500)
+                        content = com.gululu.aamediamate.lyrics.LrcFormat.shift(content, -500)
                         Toast.makeText(
                             context,
                             context.getString(R.string.shifted_by_seconds, -0.5f, 1),
@@ -95,24 +107,7 @@ fun LyricsEditorScreen(
                         Text(text = stringResource(id = R.string.shift_backward_half))
                     }
                     TextButton(onClick = {
-                        fun shift(contentText: String, deltaMs: Long): String {
-                            val pattern = Regex("""\[(\d+):(\d+(?:\.\d+)?)]""")
-                            fun format(totalSec: Float): String {
-                                val clamped = if (totalSec < 0f) 0f else totalSec
-                                val minutes = kotlin.math.floor((clamped / 60f).toDouble()).toInt()
-                                val seconds = clamped - minutes * 60f
-                                return String.format("[%02d:%05.2f]", minutes, seconds)
-                            }
-                            return contentText.lineSequence().joinToString("\n") { line ->
-                                pattern.replace(line) { m ->
-                                    val min = m.groupValues[1].toIntOrNull() ?: return@replace m.value
-                                    val sec = m.groupValues[2].toFloatOrNull() ?: return@replace m.value
-                                    val total = min * 60f + sec + (deltaMs / 1000f)
-                                    format(total)
-                                }
-                            }
-                        }
-                        content = shift(content, 500)
+                        content = com.gululu.aamediamate.lyrics.LrcFormat.shift(content, 500)
                         Toast.makeText(
                             context,
                             context.getString(R.string.shifted_by_seconds, 0.5f, 1),
@@ -123,19 +118,23 @@ fun LyricsEditorScreen(
                     }
 
                     IconButton(onClick = {
-                        coroutineScope.launch {
-                            LyricsRepository.saveLyricsText(context, lyricsKey, content)
-                            Toast.makeText(context, context.getString(R.string.lyrics_saved), Toast.LENGTH_SHORT).show()
-                            onBack()
-                        }
+                        save(content)
                     }) {
                         Icon(Icons.Default.Done, contentDescription = stringResource(id = R.string.save))
                     }
                     IconButton(onClick = {
                         coroutineScope.launch {
-                            LyricsRepository.deleteLyrics(context, listOf(lyricsKey))
-                            Toast.makeText(context, context.getString(R.string.lyrics_deleted), Toast.LENGTH_SHORT).show()
-                            onDeleted()
+                            try {
+                                LyricsRepository.deleteLyrics(context, listOf(lyricsKey))
+                                content = ""
+                                editor.savedContent = ""
+                                isLoaded = false
+                                onDeleted()
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                error = e.localizedMessage
+                            }
                         }
                     }) {
                         Icon(Icons.Default.Delete, contentDescription = stringResource(id = R.string.delete))
@@ -158,11 +157,7 @@ fun LyricsEditorScreen(
                             text = { Text(stringResource(id = R.string.clear_lyrics)) },
                             onClick = {
                                 showMenu = false
-                                content = ""
-                                coroutineScope.launch {
-                                    LyricsRepository.saveLyricsText(context, lyricsKey, "")
-                                    Toast.makeText(context, context.getString(R.string.lyrics_cleared), Toast.LENGTH_SHORT).show()
-                                }
+                                save("", closeEditor = false)
                             }
                         )
                     }
