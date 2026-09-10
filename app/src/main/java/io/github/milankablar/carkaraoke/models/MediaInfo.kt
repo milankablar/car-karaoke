@@ -1,0 +1,21 @@
+package io.github.milankablar.carkaraoke.models
+
+import android.graphics.Bitmap
+
+data class MediaInfo(
+    val appPackageName: String,
+    val appName: String,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val duration: Long,
+    val position: Long,
+    val isPlaying: Boolean,
+    val albumArt: Bitmap?,
+    val appIcon: Bitmap?,
+    val playbackStateUpdateTimeMs: Long = 0L,
+    val retrievedAtElapsedRealtimeMs: Long = 0L,
+    val playbackSpeed: Float = 1f,
+    val mediaId: String? = null,
+    val sourceActions: Long? = null
+)

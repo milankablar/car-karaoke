@@ -1,0 +1,7 @@
+{
+  "id": "io.github.milankablar.carkaraoke",
+  "url": "https://github.com/milankablar/car-karaoke",
+  "author": "milankablar",
+  "name": "Car Karaoke",
+  "additionalSettings": "{\"includePrereleases\":false,\"fallbackToOlderReleases\":true,\"apkFilterRegEx\":\"^car-karaoke-[0-9]+\\\\.[0-9]+\\\\.[0-9]+\\\\.apk$\",\"filterReleaseTitlesByRegEx\":\"^Car Karaoke [0-9]+\\\\.[0-9]+\\\\.[0-9]+$\",\"versionExtractionRegEx\":\"[0-9]+\\\\.[0-9]+\\\\.[0-9]+\",\"matchGroupToUse\":\"$0\",\"versionDetection\":true}"
+}

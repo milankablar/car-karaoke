@@ -6,41 +6,37 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val versionProps = Properties().apply { rootProject.file("version.properties").inputStream().use { load(it) } }
+
 android {
-    namespace = "com.gululu.aamediamate"
+    namespace = "io.github.milankablar.carkaraoke"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.gululu.aamediamate"
+        applicationId = "io.github.milankablar.carkaraoke"
         minSdk = 29
         targetSdk = 36
-        versionCode = 19
-        versionName = "1.4.5"
+        versionCode = versionProps.getProperty("versionCode").toInt()
+        versionName = versionProps.getProperty("versionName")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    val props = Properties().apply {
-        val file = rootProject.file("local.properties")
-        if (file.exists()) load(file.inputStream())
-    }
-
-    val hasSigning = props.containsKey("RELEASE_STORE_FILE")
-
+    val signingPath = System.getenv("KEYSTORE_FILE")
     signingConfigs {
-        if (hasSigning) {
+        if (!signingPath.isNullOrBlank()) {
             create("release") {
-                storeFile = file(props["RELEASE_STORE_FILE"] as String)
-                storePassword = props["RELEASE_STORE_PASSWORD"] as String
-                keyAlias = props["RELEASE_KEY_ALIAS"] as String
-                keyPassword = props["RELEASE_KEY_PASSWORD"] as String
+                storeFile = file(signingPath)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
             }
         }
     }
-
     buildTypes {
         release {
-            isMinifyEnabled = false
-            if (hasSigning) {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            if (!signingPath.isNullOrBlank()) {
                 signingConfig = signingConfigs.getByName("release")
             }
             proguardFiles(
@@ -51,9 +47,6 @@ android {
         debug {
             applicationIdSuffix = ".dev"
             versionNameSuffix = "-dev"
-            if (hasSigning) {
-                signingConfig = signingConfigs.getByName("release")
-            }
         }
     }
     compileOptions {
@@ -64,6 +57,7 @@ android {
         jvmTarget = "11"
     }
     buildFeatures {
+        buildConfig = true
         compose = true
     }
     testOptions {
@@ -83,6 +77,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.media:media:1.6.0")
     implementation("androidx.legacy:legacy-support-v4:1.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
@@ -91,8 +86,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation("com.github.houbb:opencc4j:1.6.0")
     implementation(libs.androidx.runtime.livedata)
-    implementation("com.android.billingclient:billing:9.1.0")
     testImplementation(libs.junit)
+    testImplementation("com.squareup.okhttp3:mockwebserver:3.14.9")
     testImplementation("io.mockk:mockk:1.13.10")
     testImplementation("org.robolectric:robolectric:4.15.1")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")

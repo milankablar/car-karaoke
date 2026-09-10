@@ -44,3 +44,10 @@ google-services.json
 .idea/render.experimental.xml
 
 nul
+dist/
+.env
+
+.kotlin/
+
+__pycache__/
+*.pyc

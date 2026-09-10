@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">AAMediaMate</string>
+    <string name="app_name">Car Karaoke</string>
 
     <!-- Settings Screen -->
     <string name="settings_title">Settings</string>
@@ -152,7 +152,7 @@
     
     <!--Setup Guidance-->
     <string name="setup_guidance">Setup Guidance</string>
-    <string name="setup_guidance_url">https://github.com/gululu1235/AAMediaMate/blob/main/README_en.md#%EF%B8%8F-lyrics-configuration</string>
+    <string name="setup_guidance_url">https://github.com/gululu1235/Car Karaoke/blob/main/README_en.md#%EF%B8%8F-lyrics-configuration</string>
     
     <!-- Android Auto errors -->
     <string name="notification_access_required_car">Notification access is required. Enable it on your phone only when it is safe to do so.</string>

@@ -3,7 +3,7 @@
 ## Project Overview
 **AAMediaMate** is an Android application designed to bridge media applications that do not natively support Android Auto (e.g., QQ Music, NetEase Cloud Music, YouTube) to the Android Auto interface. It functions by listening to media notifications on the phone and exposing that metadata and control to Android Auto via a MediaBrowserService. It also features a lyrics display system that overlays lyrics as the song title.
 
-*   **Package Name:** `com.gululu.aamediamate`
+*   **Package Name:** `io.github.milankablar.carkaraoke`
 *   **Min SDK:** 29 (Android 10)
 *   **Target SDK:** 35 (Android 15)
 *   **Language:** Kotlin
@@ -33,7 +33,7 @@ The application is built around a service-based architecture to ensure it runs i
 
 ## Key Files and Directories
 
-*   `app/src/main/java/com/gululu/aamediamate/`: Root source directory.
+*   `app/src/main/java/io/github/milankablar/carkaraoke/`: Root source directory.
     *   `Global.kt`: Application-wide constants and state.
     *   `MediaBridgeService.kt`: Core Android Auto integration logic.
     *   `MediaNotificationListener.kt`: Notification interception logic.

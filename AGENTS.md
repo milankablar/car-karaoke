@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 - Single Android app module in `app/`.
-- Kotlin sources: `app/src/main/java/com/gululu/aamediamate`.
+- Kotlin sources: `app/src/main/java/io/github/milankablar/carkaraoke`.
 - Resources: `app/src/main/res`; manifest: `app/src/main/AndroidManifest.xml`.
 - Tests: unit in `app/src/test`; instrumentation in `app/src/androidTest`.
 - Gradle config: root `build.gradle.kts`, `settings.gradle.kts`, module `app/build.gradle.kts`.
@@ -16,7 +16,7 @@
 
 ## Coding Style & Naming Conventions
 - Kotlin “official” style (`gradle.properties`: `kotlin.code.style=official`), 4‑space indent.
-- Package remains `com.gululu.aamediamate`. File names match top‑level class (e.g., `MediaBridgeService.kt`).
+- Package is `io.github.milankablar.carkaraoke`. File names match top‑level class (e.g., `MediaBridgeService.kt`).
 - Naming: Classes `PascalCase`, methods/properties `lowerCamelCase`, constants `UPPER_SNAKE_CASE`.
 - Prefer coroutines over blocking I/O; keep work off main thread.
 - Public APIs: add concise KDoc. Keep visibility as small as possible.
@@ -34,8 +34,8 @@
 - CI hygiene: ensure `assembleDebug`, `lint`, and tests pass before requesting review.
 
 ## Security & Configuration Tips
-- Do not commit secrets or keystores. Release signing uses `local.properties` keys: `RELEASE_STORE_FILE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`.
+- Do not commit secrets or keystores. Release signing uses environment variables KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD. Use explicit --repo milankablar/car-karaoke with gh mutations. Upstream is for fetching only.
 - Keep `applicationId` and min/target SDKs aligned with `app/build.gradle.kts`. JVM target is 11.
 
 ## Quick Orientation
-- Key classes: `MediaBridgeService`, `MediaControllerManager`, `MediaNotificationListener`, `LyricDisplayManager`, `MainActivity` in `app/src/main/java/com/gululu/aamediamate`.
+- Key classes: `MediaBridgeService`, `MediaControllerManager`, `MediaNotificationListener`, `LyricDisplayManager`, `MainActivity` in `app/src/main/java/io/github/milankablar/carkaraoke`.

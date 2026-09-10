@@ -1,21 +1,14 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
-
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
-
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Preserve app models and provider reflection while shrinking unused dependency code.
+-keep class io.github.milankablar.carkaraoke.** { *; }
+# OpenCC discovers conversion implementations reflectively.
+-keep class com.github.houbb.** { *; }
+-keepattributes Signature,InnerClasses,EnclosingMethod,RuntimeVisibleAnnotations,AnnotationDefault
+# Optional desktop-only helpers in OpenCC's transitive utility jar are not used on Android.
+-dontwarn com.huaban.analysis.jieba.JiebaSegmenter
+-dontwarn java.beans.IntrospectionException
+-dontwarn java.beans.PropertyDescriptor
+-dontwarn java.lang.management.ManagementFactory
+-dontwarn java.lang.management.RuntimeMXBean
+-dontwarn sun.misc.BASE64Decoder
+-dontwarn sun.misc.BASE64Encoder
+-dontwarn sun.reflect.generics.reflectiveObjects.WildcardTypeImpl

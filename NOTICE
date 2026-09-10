@@ -1,0 +1,10 @@
+Car Karaoke
+Copyright 2026 Car Karaoke contributors
+
+This product includes code from AAMediaMate by gululu1235 and contributors,
+licensed under the Apache License, Version 2.0.
+Original project: https://github.com/gululu1235/AAMediaMate
+Fork base: 288cca9b54891a250b3d1a7f8717ff8b73b22da6 (v1.4.5)
+
+Changes include package/branding, removal of billing, recording-aware lyric
+resolution, shared karaoke state, phone/car presentation, tests and distribution.

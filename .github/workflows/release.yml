@@ -1,0 +1,57 @@
+name: Release
+on:
+  push:
+    tags: ['car-karaoke-v*']
+permissions:
+  contents: write
+concurrency:
+  group: car-karaoke-release
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.repository == 'milankablar/car-karaoke'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      KEYSTORE_FILE: ${{ runner.temp }}/car-karaoke.jks
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      KEY_ALIAS: car-karaoke
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Validate release identity and version
+        run: python3 scripts/release.py guard
+      - name: Prepare signing and SDK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
+          sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Test and build signed APK
+        run: |
+          echo "$(cat gradle/wrapper/gradle-wrapper.jar.sha256)  gradle/wrapper/gradle-wrapper.jar" | sha256sum --check
+          bash gradlew testReleaseUnitTest lintRelease assembleRelease --console=plain
+          python3 scripts/obtainium.py --check
+          python3 scripts/release.py package
+      - name: Publish immutable release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version="$(sed -n 's/^versionName=//p' version.properties)"
+          gh release create "$RELEASE_TAG" --repo milankablar/car-karaoke --verify-tag --draft --title "Car Karaoke $version" --notes-file docs/release-notes.md dist/*.apk dist/SHA256SUMS dist/release-metadata.json
+          gh release edit "$RELEASE_TAG" --repo milankablar/car-karaoke --draft=false
+      - name: Remove signing material
+        if: always()
+        run: rm -f "$KEYSTORE_FILE"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: release-reports
+          path: app/build/reports

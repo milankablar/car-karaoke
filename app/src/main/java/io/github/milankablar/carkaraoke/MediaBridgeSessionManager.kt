@@ -1,0 +1,539 @@
+package io.github.milankablar.carkaraoke
+
+import android.content.Context
+import android.media.MediaMetadata
+import android.media.session.MediaController
+import android.media.session.PlaybackState
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import android.support.v4.media.session.MediaSessionCompat
+import android.util.Log
+import io.github.milankablar.carkaraoke.diagnostics.DiagnosticLogger
+import io.github.milankablar.carkaraoke.diagnostics.DiagnosticModule
+import io.github.milankablar.carkaraoke.models.MediaInfo
+import kotlin.math.abs
+import io.github.milankablar.carkaraoke.karaoke.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import android.support.v4.media.MediaMetadataCompat
+
+@OptIn(kotlinx.coroutines.FlowPreview::class)
+object MediaBridgeSessionManager {
+    private val owners = mutableSetOf<String>()
+    private var karaokeJob: Job? = null
+    private val runtimeScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    fun acquire(context: Context, owner: String) { owners.add(owner); init(context); refreshCurrentSession() }
+    fun relinquish(owner: String) { owners.remove(owner); if (owners.isEmpty()) release() }
+    private var mediaSession: MediaSessionCompat? = null
+    private var mediaStateUpdater: MediaStateUpdater? = null
+    private var lyricDisplayManager: LyricDisplayManager? = null
+    private var currentMediaInfo: MediaInfo? = null
+    private var browserErrorActive = false
+    private var mediaInfoListener: ((MediaInfo?) -> Unit)? = null
+    private var context: Context? = null
+    private val mainHandler: Handler by lazy { Handler(Looper.getMainLooper()) }
+    private var observedSourceController: MediaController? = null
+    private var pendingSourceRefreshReason: String = "source controller callback"
+    private var lastSourceMetadataChangeElapsedRealtimeMs: Long = 0L
+    private var stalePositionOverrideMediaKey: String? = null
+    private var stalePositionOverrideStartedAtMs: Long = 0L
+    private var stalePositionRecheckCount: Int = 0
+
+    private val sourceControllerCallback = object : MediaController.Callback() {
+        override fun onMetadataChanged(metadata: MediaMetadata?) {
+            lastSourceMetadataChangeElapsedRealtimeMs = SystemClock.elapsedRealtime()
+            scheduleSourceRefresh("Source metadata changed", SOURCE_CALLBACK_REFRESH_DELAY_MS)
+        }
+
+        override fun onPlaybackStateChanged(state: PlaybackState?) {
+            val info = currentMediaInfo ?: return
+            if (state == null) {
+                scheduleSourceRefresh("Source playback state cleared", SOURCE_CALLBACK_REFRESH_DELAY_MS)
+                return
+            }
+
+            val isPlaying = state.state == PlaybackState.STATE_PLAYING
+            if (
+                isPlaying != info.isPlaying ||
+                state.playbackSpeed != info.playbackSpeed ||
+                abs(MediaInformationRetriever.getCurrentPositionMs(state) - MediaInformationRetriever.getEstimatedPositionMs(info)) > 1_000L ||
+                hasExceededMediaDuration(info, state) ||
+                shouldRefreshPendingStalePosition(info, state)
+            ) {
+                scheduleSourceRefresh("Source playback state changed", SOURCE_CALLBACK_REFRESH_DELAY_MS)
+            } else {
+                scheduleEndOfMediaRefresh(info)
+            }
+        }
+
+        override fun onSessionDestroyed() {
+            scheduleSourceRefresh("Source session destroyed", 0L)
+        }
+    }
+
+    private val sourceRefreshRunnable = Runnable {
+        val ctx = context ?: return@Runnable
+        val reason = pendingSourceRefreshReason
+        DiagnosticLogger.debug(
+            ctx,
+            DiagnosticModule.MEDIA,
+            "Refreshing media info from source",
+            mapOf("reason" to reason)
+        )
+        updateFromMediaInfo(MediaInformationRetriever.refreshCurrentMediaInfo(ctx))
+    }
+
+    private val endOfMediaRefreshRunnable = Runnable {
+        val ctx = context ?: return@Runnable
+        val info = currentMediaInfo ?: return@Runnable
+        val positionMs = getCurrentSourcePositionMs(ctx, info)
+        DiagnosticLogger.debug(
+            ctx,
+            DiagnosticModule.MEDIA,
+            "Refreshing media info after expected media end",
+            mapOf(
+                "package" to info.appPackageName,
+                "title" to info.title,
+                "positionMs" to positionMs,
+                "durationMs" to info.duration
+            )
+        )
+        updateFromMediaInfo(MediaInformationRetriever.refreshCurrentMediaInfo(ctx))
+    }
+
+    fun init(context: Context) {
+        if (mediaSession != null) return
+
+        val appContext = context.applicationContext
+        this.context = appContext
+        mediaStateUpdater = MediaStateUpdater(appContext)
+        KaraokeRuntime.initialize(appContext)
+
+        mediaSession = MediaSessionCompat(appContext, "MediaBridgeSession").apply {
+            setCallback(MediaBridgeMediaCallback(appContext))
+            setFlags(
+                MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
+                        MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
+            )
+            isActive = true
+        }
+
+        mediaStateUpdater?.clear(mediaSession!!)
+        karaokeJob = runtimeScope.launch {
+            KaraokeRuntime.coordinator.state.map { Triple(CarLyricsPresenter.index(it, appContext.getSharedPreferences("presentation", 0).getLong("carOffset", 0)), it.revision, it.track?.key to it.info) }.distinctUntilChanged().sample(300).collect {
+                val state = KaraokeRuntime.coordinator.state.value
+                val info = state.info
+                val session = mediaSession
+                if (info != null && session != null) {
+                    val prefs = appContext.getSharedPreferences("presentation", 0)
+                    val index = CarLyricsPresenter.index(state, prefs.getLong("carOffset", 0))
+                    val line = state.resolution.document.lines.getOrNull(index)?.text.orEmpty()
+                    val next = state.resolution.document.lines.getOrNull(index + 1)?.text.orEmpty()
+                    val metadata = MediaMetadataCompat.Builder(session.controller.metadata)
+                        .putString(MediaMetadataCompat.METADATA_KEY_TITLE, if (prefs.getBoolean("carLegacyTitle", false)) line.ifBlank { info.title } else info.title)
+                        .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_TITLE, if (prefs.getBoolean("carLegacyTitle", false)) line.ifBlank { info.title } else info.title)
+                        .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_SUBTITLE, line.ifBlank { info.artist })
+                        .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_DESCRIPTION, next)
+                        .build()
+                    session.setMetadata(metadata)
+                }
+                MediaBridgeService.refreshLyrics()
+            }
+        }
+        Log.d("MediaBridge", "✅ MediaSession initialized.")
+        DiagnosticLogger.info(appContext, DiagnosticModule.MEDIA, "MediaSession initialized")
+    }
+
+    fun updateFromMediaInfo(info: MediaInfo?, forceLyricsResync: Boolean = false) {
+        val previousInfo = currentMediaInfo
+        val session = mediaSession ?: return
+        val ctx = context ?: return
+        mainHandler.removeCallbacks(sourceRefreshRunnable)
+
+        if (info == null || !Global.packageAllowed(ctx, info.appPackageName)) {
+            if (info != null) {
+                Log.d("MediaBridge", "🚫 Ignoring disallowed package: ${info.appPackageName}")
+                DiagnosticLogger.info(
+                    ctx,
+                    DiagnosticModule.MEDIA,
+                    "Ignoring disallowed media package",
+                    mapOf("package" to info.appPackageName)
+                )
+            }
+            cancelPendingMediaRefreshes()
+            stopObservingSourceController()
+            clearStalePositionOverride()
+            mediaStateUpdater?.clear(session)
+            KaraokeRuntime.coordinator.update(null)
+            mediaInfoListener?.invoke(null)
+            currentMediaInfo = null // Ensure we don't hold onto disallowed info
+            browserErrorActive = false
+            MediaBridgeService.refreshBrowserData()
+            return
+        }
+
+        val normalizedInfo = normalizeMediaInfoPosition(previousInfo, info)
+        browserErrorActive = false
+        currentMediaInfo = normalizedInfo
+        observeSourceController(normalizedInfo)
+
+        // Track this app as bridged
+        SettingsManager.addOrUpdateBridgedApp(ctx, normalizedInfo.appPackageName, normalizedInfo.appName)
+        DiagnosticLogger.info(
+            ctx,
+            DiagnosticModule.MEDIA,
+            "Media session updated",
+            mapOf(
+                "package" to normalizedInfo.appPackageName,
+                "app" to normalizedInfo.appName,
+                "title" to normalizedInfo.title,
+                "artist" to normalizedInfo.artist,
+                "playing" to normalizedInfo.isPlaying,
+                "positionMs" to normalizedInfo.position,
+                "durationMs" to normalizedInfo.duration,
+                "stateUpdateTimeMs" to normalizedInfo.playbackStateUpdateTimeMs,
+                "positionOverride" to (stalePositionOverrideMediaKey == mediaIdentityKey(normalizedInfo))
+            )
+        )
+
+        mediaStateUpdater?.update(session, normalizedInfo)
+        KaraokeRuntime.coordinator.update(normalizedInfo, forceLyricsResync)
+
+        mediaInfoListener?.invoke(normalizedInfo)
+        scheduleEndOfMediaRefresh(normalizedInfo)
+        MediaBridgeService.refreshBrowserData()
+    }
+
+    /** Ends the service-owned session and cancels every callback and lyric task. */
+    fun release() {
+        karaokeJob?.cancel()
+        karaokeJob = null
+        KaraokeRuntime.coordinator.update(null)
+        cancelPendingMediaRefreshes()
+        stopObservingSourceController()
+        clearStalePositionOverride()
+        lyricDisplayManager?.close()
+        lyricDisplayManager = null
+        mediaSession?.setCallback(null)
+        mediaSession?.release()
+        mediaSession = null
+        mediaStateUpdater = null
+        currentMediaInfo = null
+        browserErrorActive = false
+        lastSourceMetadataChangeElapsedRealtimeMs = 0L
+        mediaInfoListener?.invoke(null)
+        context = null
+    }
+
+    /** Coalesces notification and transport events on the service's main thread. */
+    fun requestRefresh(reason: String, delayMs: Long = SOURCE_CALLBACK_REFRESH_DELAY_MS) {
+        if (context != null) scheduleSourceRefresh(reason, delayMs)
+    }
+
+    internal fun isControllerTrusted(): Boolean {
+        val ctx = context ?: return false
+        if (currentMediaInfo?.let { !SettingsManager.isAppHeadUnitControlEnabled(ctx, it.appPackageName) } == true) return false
+        val caller = runCatching { mediaSession?.currentControllerInfo }.getOrNull() ?: return false
+        return MediaClientValidator.isTrusted(ctx, caller.packageName, caller.uid)
+    }
+
+    fun getSessionToken(): MediaSessionCompat.Token? = mediaSession?.sessionToken
+
+    internal fun showBrowserError(message: String) {
+        val session = mediaSession ?: return
+        browserErrorActive = true
+        mediaStateUpdater?.showError(session, message)
+    }
+
+    internal fun clearBrowserError() {
+        if (!browserErrorActive) return
+
+        val session = mediaSession ?: return
+        browserErrorActive = false
+        val info = currentMediaInfo
+        if (info == null) {
+            mediaStateUpdater?.clear(session)
+        } else {
+            mediaStateUpdater?.update(session, info)
+        }
+    }
+
+    fun getCurrentMediaPackage(): String? = currentMediaInfo?.appPackageName
+
+    /** Rebuilds the active bridged session after a display preference changes. */
+    fun refreshCurrentSession(forceLyricsResync: Boolean = false) {
+        val ctx = context ?: return
+        val refreshedInfo = MediaInformationRetriever.refreshCurrentMediaInfo(ctx)
+
+        updateFromMediaInfo(refreshedInfo, forceLyricsResync)
+    }
+
+    fun setMediaInfoListener(listener: (MediaInfo?) -> Unit) {
+        mediaInfoListener = listener
+    }
+
+    fun clearMediaInfoListener() {
+        mediaInfoListener = null
+    }
+
+    fun getRewindActionId(): String = MediaStateUpdater.ACTION_REWIND_10S
+    fun getFastForwardActionId(): String = MediaStateUpdater.ACTION_FAST_FORWARD_10S
+
+    private fun observeSourceController(info: MediaInfo) {
+        val ctx = context ?: return
+        val controller = MediaControllerManager.getActiveController(ctx)
+        if (controller == null) {
+            stopObservingSourceController()
+            return
+        }
+
+        if (observedSourceController?.sessionToken == controller.sessionToken) return
+
+        stopObservingSourceController()
+        runCatching {
+            controller.registerCallback(sourceControllerCallback, mainHandler)
+        }.onSuccess {
+            observedSourceController = controller
+            DiagnosticLogger.debug(
+                ctx,
+                DiagnosticModule.MEDIA,
+                "Source media controller callback registered",
+                mapOf("package" to info.appPackageName)
+            )
+        }.onFailure { throwable ->
+            DiagnosticLogger.warn(
+                ctx,
+                DiagnosticModule.MEDIA,
+                "Failed to register source media controller callback",
+                mapOf("package" to info.appPackageName),
+                throwable
+            )
+        }
+    }
+
+    private fun stopObservingSourceController() {
+        val controller = observedSourceController ?: return
+        runCatching {
+            controller.unregisterCallback(sourceControllerCallback)
+        }.onFailure { throwable ->
+            context?.let { ctx ->
+                DiagnosticLogger.warn(
+                    ctx,
+                    DiagnosticModule.MEDIA,
+                    "Failed to unregister source media controller callback",
+                    throwable = throwable
+                )
+            }
+        }
+        observedSourceController = null
+    }
+
+    private fun scheduleSourceRefresh(reason: String, delayMs: Long) {
+        pendingSourceRefreshReason = reason
+        mainHandler.removeCallbacks(sourceRefreshRunnable)
+        mainHandler.postDelayed(sourceRefreshRunnable, delayMs)
+    }
+
+    private fun scheduleEndOfMediaRefresh(info: MediaInfo) {
+        mainHandler.removeCallbacks(endOfMediaRefreshRunnable)
+        if (!info.isPlaying || info.duration <= 0L) return
+
+        val ctx = context ?: return
+        val positionMs = getCurrentSourcePositionMs(ctx, info)
+        val delayMs = calculateEndOfMediaRefreshDelay(positionMs, info.duration, info.playbackSpeed)
+        DiagnosticLogger.debug(
+            ctx,
+            DiagnosticModule.MEDIA,
+            "Scheduled end-of-media refresh",
+            mapOf(
+                "package" to info.appPackageName,
+                "title" to info.title,
+                "positionMs" to positionMs,
+                "durationMs" to info.duration,
+                "delayMs" to delayMs
+            )
+        )
+        mainHandler.postDelayed(endOfMediaRefreshRunnable, delayMs)
+    }
+
+    private fun cancelPendingMediaRefreshes() {
+        mainHandler.removeCallbacks(sourceRefreshRunnable)
+        mainHandler.removeCallbacks(endOfMediaRefreshRunnable)
+    }
+
+    private fun hasExceededMediaDuration(info: MediaInfo, state: PlaybackState): Boolean {
+        if (!info.isPlaying || info.duration <= 0L) return false
+
+        val positionMs = if (stalePositionOverrideMediaKey == mediaIdentityKey(info)) {
+            getStalePositionOverrideMs()
+        } else {
+            MediaInformationRetriever.getCurrentPositionMs(state)
+        }
+        return positionMs > info.duration + END_OF_MEDIA_REFRESH_GRACE_MS
+    }
+
+    private fun getCurrentSourcePositionMs(ctx: Context, fallbackInfo: MediaInfo): Long {
+        if (stalePositionOverrideMediaKey == mediaIdentityKey(fallbackInfo)) {
+            return getStalePositionOverrideMs()
+        }
+
+        val state = MediaControllerManager.getActiveController(ctx)?.playbackState
+        return state
+            ?.let { MediaInformationRetriever.getCurrentPositionMs(it) }
+            ?: MediaInformationRetriever.getEstimatedPositionMs(fallbackInfo)
+    }
+
+    private fun normalizeMediaInfoPosition(previousInfo: MediaInfo?, info: MediaInfo): MediaInfo {
+        val mediaKey = mediaIdentityKey(info)
+        val nowMs = SystemClock.elapsedRealtime()
+
+        if (stalePositionOverrideMediaKey != null && stalePositionOverrideMediaKey != mediaKey) {
+            clearStalePositionOverride()
+        }
+
+        val shouldStartOverride = shouldTreatPositionAsStaleAfterMediaChange(
+            previousInfo = previousInfo,
+            info = info,
+            lastMetadataChangeElapsedRealtimeMs = lastSourceMetadataChangeElapsedRealtimeMs,
+            nowElapsedRealtimeMs = nowMs
+        )
+        val shouldContinueOverride = stalePositionOverrideMediaKey == mediaKey &&
+                info.isPlaying &&
+                info.position > NEW_MEDIA_STALE_POSITION_THRESHOLD_MS &&
+                info.position - getStalePositionOverrideMs(nowMs) > STALE_POSITION_CLEAR_TOLERANCE_MS
+
+        if (!shouldStartOverride && !shouldContinueOverride) {
+            if (stalePositionOverrideMediaKey == mediaKey) {
+                clearStalePositionOverride()
+            }
+            return info
+        }
+
+        if (stalePositionOverrideMediaKey != mediaKey) {
+            stalePositionOverrideMediaKey = mediaKey
+            stalePositionOverrideStartedAtMs = nowMs
+            stalePositionRecheckCount = 0
+        }
+
+        val correctedPositionMs = getStalePositionOverrideMs(nowMs)
+        if (stalePositionRecheckCount < STALE_POSITION_RECHECK_LIMIT) {
+            stalePositionRecheckCount++
+            scheduleSourceRefresh(
+                "Rechecking source playback state after media change",
+                STALE_POSITION_RECHECK_DELAY_MS
+            )
+        }
+
+        DiagnosticLogger.warn(
+            context ?: return info.copy(position = correctedPositionMs, retrievedAtElapsedRealtimeMs = nowMs),
+            DiagnosticModule.MEDIA,
+            "Corrected stale playback position after media change",
+            mapOf(
+                "package" to info.appPackageName,
+                "title" to info.title,
+                "rawPositionMs" to info.position,
+                "correctedPositionMs" to correctedPositionMs,
+                "durationMs" to info.duration,
+                "stateUpdateTimeMs" to info.playbackStateUpdateTimeMs,
+                "metadataChangeTimeMs" to lastSourceMetadataChangeElapsedRealtimeMs
+            )
+        )
+
+        return info.copy(position = correctedPositionMs, retrievedAtElapsedRealtimeMs = nowMs)
+    }
+
+    internal fun shouldTreatPositionAsStaleAfterMediaChange(
+        previousInfo: MediaInfo?,
+        info: MediaInfo,
+        lastMetadataChangeElapsedRealtimeMs: Long,
+        nowElapsedRealtimeMs: Long
+    ): Boolean {
+        if (previousInfo == null || isSameMedia(previousInfo, info)) return false
+        if (previousInfo.appPackageName != info.appPackageName) return false
+        if (previousInfo.title == info.title && previousInfo.artist == info.artist &&
+            (previousInfo.mediaId.isNullOrBlank() || info.mediaId.isNullOrBlank())) return false
+        if (!info.isPlaying || info.position <= NEW_MEDIA_STALE_POSITION_THRESHOLD_MS) return false
+
+        if (isPlaybackStateOlderThanMetadata(info, lastMetadataChangeElapsedRealtimeMs)) {
+            return true
+        }
+
+        if (!previousInfo.isPlaying) return false
+
+        val previousProjectedPositionMs = MediaInformationRetriever.getEstimatedPositionMs(
+            previousInfo,
+            nowElapsedRealtimeMs
+        )
+        return abs(info.position - previousProjectedPositionMs) <= CARRIED_POSITION_TOLERANCE_MS
+    }
+
+    private fun shouldRefreshPendingStalePosition(info: MediaInfo, state: PlaybackState): Boolean {
+        if (stalePositionOverrideMediaKey != mediaIdentityKey(info)) return false
+
+        val sourcePositionMs = MediaInformationRetriever.getCurrentPositionMs(state)
+        val correctedPositionMs = getStalePositionOverrideMs()
+        return sourcePositionMs <= NEW_MEDIA_STALE_POSITION_THRESHOLD_MS ||
+                abs(sourcePositionMs - correctedPositionMs) <= STALE_POSITION_CLEAR_TOLERANCE_MS ||
+                !isPlaybackStateOlderThanMetadata(
+                    info.copy(playbackStateUpdateTimeMs = state.lastPositionUpdateTime),
+                    lastSourceMetadataChangeElapsedRealtimeMs
+                )
+    }
+
+    private fun isPlaybackStateOlderThanMetadata(
+        info: MediaInfo,
+        lastMetadataChangeElapsedRealtimeMs: Long
+    ): Boolean {
+        return lastMetadataChangeElapsedRealtimeMs > 0L &&
+                info.playbackStateUpdateTimeMs > 0L &&
+                info.playbackStateUpdateTimeMs + STATE_METADATA_STALE_TOLERANCE_MS <
+                lastMetadataChangeElapsedRealtimeMs
+    }
+
+    private fun getStalePositionOverrideMs(
+        nowElapsedRealtimeMs: Long = SystemClock.elapsedRealtime()
+    ): Long {
+        if (stalePositionOverrideStartedAtMs <= 0L) return 0L
+        return ((nowElapsedRealtimeMs - stalePositionOverrideStartedAtMs).coerceAtLeast(0L) * (currentMediaInfo?.playbackSpeed?.takeIf { it.isFinite() && it > 0f } ?: 1f)).toLong()
+    }
+
+    private fun clearStalePositionOverride() {
+        stalePositionOverrideMediaKey = null
+        stalePositionOverrideStartedAtMs = 0L
+        stalePositionRecheckCount = 0
+    }
+
+    private fun isSameMedia(first: MediaInfo, second: MediaInfo): Boolean {
+        return first.appPackageName == second.appPackageName && first.title.trim() == second.title.trim() &&
+            first.artist.trim() == second.artist.trim() &&
+            (first.mediaId.isNullOrBlank() || second.mediaId.isNullOrBlank() || first.mediaId == second.mediaId)
+    }
+
+    private fun mediaIdentityKey(info: MediaInfo): String {
+        return listOf(
+            info.appPackageName,
+            info.title.trim(),
+            info.artist.trim(),
+            info.mediaId.orEmpty()
+        ).joinToString("|")
+    }
+
+    internal fun calculateEndOfMediaRefreshDelay(positionMs: Long, durationMs: Long, speed: Float = 1f): Long {
+        if (durationMs <= 0L) return MIN_END_OF_MEDIA_REFRESH_DELAY_MS
+
+        val remainingMs = durationMs - positionMs.coerceAtLeast(0L)
+        return ((remainingMs / speed.takeIf { it.isFinite() && it > 0f }.let { it ?: 1f }).toLong() + END_OF_MEDIA_REFRESH_GRACE_MS)
+            .coerceAtLeast(MIN_END_OF_MEDIA_REFRESH_DELAY_MS)
+    }
+
+    private const val SOURCE_CALLBACK_REFRESH_DELAY_MS = 250L
+    private const val END_OF_MEDIA_REFRESH_GRACE_MS = 1_000L
+    private const val MIN_END_OF_MEDIA_REFRESH_DELAY_MS = 1_000L
+    private const val NEW_MEDIA_STALE_POSITION_THRESHOLD_MS = 10_000L
+    private const val CARRIED_POSITION_TOLERANCE_MS = 15_000L
+    private const val STALE_POSITION_CLEAR_TOLERANCE_MS = 5_000L
+    private const val STATE_METADATA_STALE_TOLERANCE_MS = 500L
+    private const val STALE_POSITION_RECHECK_DELAY_MS = 750L
+    private const val STALE_POSITION_RECHECK_LIMIT = 3
+}

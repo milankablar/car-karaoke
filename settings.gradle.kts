@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MediaBridge"
+rootProject.name = "CarKaraoke"
 include(":app")

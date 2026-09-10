@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">AAMediaMate</string>
+    <string name="app_name">Car Karaoke</string>
     <string name="unknown_app">未知應用</string>
 
     <!-- Settings Screen -->
@@ -152,7 +152,7 @@
     
     <!--Setup Guidance-->
     <string name="setup_guidance">設定指南</string>
-    <string name="setup_guidance_url">https://github.com/gululu1235/AAMediaMate?tab=readme-ov-file#%EF%B8%8F-%E6%AD%8C%E8%AF%8D%E8%AE%BE%E7%BD%AE</string>
+    <string name="setup_guidance_url">https://github.com/gululu1235/Car Karaoke?tab=readme-ov-file#%EF%B8%8F-%E6%AD%8C%E8%AF%8D%E8%AE%BE%E7%BD%AE</string>
     
     <!-- Android Auto errors -->
     <string name="notification_access_required_car">需要通知存取權限。請僅在確保安全時於手機上開啟該權限。</string>

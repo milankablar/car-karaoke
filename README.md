@@ -1,146 +1,52 @@
-# AAMediaMate 
+# Car Karaoke
 
-<div align="center">
-    <img alt="LOGO" src="app\src\main\res\drawable\app_icon.png" width="200" height="200" />
-</div>
+Synchronized lyrics for your phone and Android Auto. A vehicle-independent fork of [AAMediaMate](https://github.com/gululu1235/AAMediaMate), built around reliable song matching and a clean Android experience.
 
-[For README in English](README_en.md)
+- Moving multiline lyrics with the current line highlighted; enhanced LRC word timing when present.
+- Shared phone/car song selection, lyrics and corrections, with optional car display-delay adjustment.
+- Recording-aware cache and conservative matching; preview ambiguous results before selecting them.
+- Clean Material 3 settings, light/dark/black themes, lyric size and reduced motion.
+- LRC import, saved corrections, offline lyrics, backup and diagnostics.
+- Signed GitHub releases with Obtainium updates. No account, subscription or billing.
 
- **AAMediaMate (Android Auto Media Mate)** 是一款用于 Android Auto 的媒体桥接工具，可以将当前正在手机上播放的音乐信息同步到车载屏幕上，并支持基础的播放控制与可选的歌词同步功能。
+## Install and updates
 
-本App主要功能与Readme由ChatGPT, Claude Code辅助编写，Logo由Gemini辅助生成。
----
-## It's official now -- AAMediaMate is public available in [Google Play](https://play.google.com/store/apps/details?id=com.gululu.aamediamate&pcampaignid=web_share). Enjoy :)
----
+[**Add Car Karaoke to Obtainium**](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22io.github.milankablar.carkaraoke%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fmilankablar%2Fcar-karaoke%22%2C%22author%22%3A%22milankablar%22%2C%22name%22%3A%22Car%20Karaoke%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Afalse%2C%5C%22fallbackToOlderReleases%5C%22%3Atrue%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5Ecar-karaoke-%5B0-9%5D%2B%5C%5C%5C%5C.%5B0-9%5D%2B%5C%5C%5C%5C.%5B0-9%5D%2B%5C%5C%5C%5C.apk%24%5C%22%2C%5C%22filterReleaseTitlesByRegEx%5C%22%3A%5C%22%5ECar%20Karaoke%20%5B0-9%5D%2B%5C%5C%5C%5C.%5B0-9%5D%2B%5C%5C%5C%5C.%5B0-9%5D%2B%24%5C%22%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22%5B0-9%5D%2B%5C%5C%5C%5C.%5B0-9%5D%2B%5C%5C%5C%5C.%5B0-9%5D%2B%5C%22%2C%5C%22matchGroupToUse%5C%22%3A%5C%22%240%5C%22%2C%5C%22versionDetection%5C%22%3Atrue%7D%22%7D) · [Download the APK](https://github.com/milankablar/car-karaoke/releases/latest)
 
-## 📱 功能简介
+1. Install [Obtainium](https://github.com/ImranR98/Obtainium/releases/latest) if needed.
+2. Open the link above on your phone, confirm the import, then install Car Karaoke **through Obtainium**.
+3. Grant installation permission when Android asks. Open Car Karaoke and enable music notification access.
+4. Start a song in your music app. Connect Android Auto and open Car Karaoke → Live lyrics.
 
-- 🛰️ 桥接正在播放的音乐 App（无须 App 原生支持 Android Auto）
-- ⏯️ 支持基础控制：播放、暂停、上一首、下一首
-- 🎤 可选支持歌词显示，通过Android Auto的歌名显示滚动歌词
-- 📱 手机端主界面支持管理歌词缓存、修改设置
+<img src="distribution/obtainium-qr.png" alt="Scan to add Car Karaoke to Obtainium" width="240">
 
----
+Obtainium tracks stable releases and selects the single Car Karaoke APK. Enable its background checks/updates if desired; Android controls scheduling and whether installation can be silent. [Setup and release details](docs/releases.md).
 
-## ⚠️ 使用说明与限制
+## Screens
 
-- 本 App 的主要目标是**桥接未支持 Android Auto 的音乐 App**，如 QQ 音乐、网易云音乐、酷狗音乐等。  
-  若某 App 原生已支持 Android Auto（如 YouTube Music），本App也可以实现控制及歌词显示，但需要先调整设置。
+<img src="docs/screenshots/karaoke-light.png" alt="Phone karaoke in the light theme" width="260"> <img src="docs/screenshots/settings-dark.png" alt="Clean settings in the dark theme" width="260">
 
-- 本 App 通过通知监听和媒体 Session 获取播放信息，请务必授权对应权限，否则将无法正常使用。
-- **从APK安装本app需要在Android Auto中启用未知来源应用**
----
-## 如何开启 Android Auto 的 Unknown Sources（未知来源）
-### 1. 启用开发者模式
-1. 打开 **Android Auto 应用**（在手机设置中搜索“Android Auto”）。
-2. 滚动到页面最底部，找到 **版本号（Version）**。
-3. 连续点击 **版本号 10 次**，直到屏幕提示 **“开发者模式已启用”**。
+Screenshots show original synthetic test lyrics on an Android emulator.
 
----
+## Current status
 
-### 2. 进入开发者设置
-1. 返回 **Android Auto 设置**主界面。
-2. 点击右上角的 **三点菜单（⋮） → 开发者设置（Developer settings）**。
+Initial release. Automated regression checks and Android 16 emulator UI checks are available. Pixel 8 Pro/Android 17, Desktop Head Unit, physical Android Auto rendering, real music-app coexistence and a complete Obtainium update cycle still require acceptance testing. The first planned physical host is a Mazda CX-90; no vehicle-specific logic is used.
 
----
+Android Auto owns the car layout and refresh behavior. The app exposes a moving three-line lyric destination and lyric display metadata, with a compatibility title mode. Word highlighting requires actual word timestamps; ordinary online LRC is line-timed and plain lyrics remain untimed.
 
-### 3. 打开 Unknown sources
-1. 在开发者设置中找到 **“Unknown sources / 未知来源”** 选项。
-2. 打开该开关。
-3. 重启 Android Auto 应用。
----
-## ⚠️ 安全提示
+## Development
 
-🚗 **不建议驾驶时使用歌词显示功能。**  
-请在驻车或作为乘客时使用歌词功能，确保行车安全！
+Java 17, Android SDK 36, minimum Android 10 (API 29).
 
----
-
-## ⚙️ 歌词设置
-
-AAMediaMate 支持三个歌词源，可在「设置」页面单独启用/禁用并调整优先级。
-
-### 1️⃣ LRCLib（默认）
-
-免费开源的同步歌词数据库，无需任何配置，推荐设为默认。
-
----
-
-### 2️⃣ Spotify (via [RapidAPI](https://rapidapi.com/nguyenmanhict-MuTUtGWD7K/api/spotify-web-api3))
-
-**设置方法：**
-
-1. 访问 [RapidAPI 页面](https://rapidapi.com/nguyenmanhict-MuTUtGWD7K/api/spotify-web-api3)
-2. 注册或登录 RapidAPI 账号
-3. 获取你的 `X-RapidAPI-Key`
-4. 在 AAMediaMate 的 Spotify 歌词源设置中粘贴该 Key
-
-**注意：** 免费额度有限
-
----
-
-### 3️⃣ [LrcApi](https://github.com/HisAtri/LrcApi)
-
-社区提供的开源歌词 API，中文歌词支持较好。
-无需配置 API Key，但需要手动设置 API 地址。参阅 [LrcApi](https://github.com/HisAtri/LrcApi) 文档设置公开 API 或自己搭建服务器
-
-如果自建服务器开启了鉴权，可在歌词源设置中填写 **Authorization Token**，Token 会直接作为 `Authorization` HTTP header 发送：
-```
-Authorization: <your-token>
+```sh
+bash gradlew testDebugUnitTest lintDebug assembleDebug
+bash gradlew connectedDebugAndroidTest
 ```
 
----
+Release package: `io.github.milankablar.carkaraoke`. Debug builds use `.dev` and a separate signing identity.
 
-## 🛠️ 使用方式
+[Architecture](docs/architecture.md) · [Test matrix](docs/testing.md) · [Release automation](docs/releases.md) · [Original implementation plan](docs/implementation-plan.md)
 
-1. 下载 Release 页面的 APK 安装到手机
-2. 授权通知监听权限（首次启动时会提示）
-3. 打开 App 主界面，可查看当前桥接的媒体信息
-4. 使用 Android Auto 车机端选择 AAMediaMate 作为媒体来源
-5. 播放任意支持的音乐 App，AAMediaMate 将自动同步元数据与封面
+## Credits and license
 
----
-
-## 📂 下载发布版 APK
-
-请前往 [Releases 页面](https://github.com/gululu1235/AAMediaMate/releases) 下载最新版 APK  
-（建议通过浏览器访问，确保已允许「安装未知来源的应用」）
-
----
-
-## 📄 开源协议
-
-本项目基于 [Apache License 2.0](LICENSE) 开源发布，欢迎二次开发与贡献。
-
----
-
-## 🙏 鸣谢
-
-- [ChatGPT](https://chatgpt.com/)
-- [Gemini](https://gemini.google.com/app)
-- [Spotify Lyrics via RapidAPI](https://rapidapi.com/nguyenmanhict-MuTUtGWD7K/api/spotify-web-api3)
-- [LrcApi by @HisAtri](https://github.com/HisAtri/LrcApi)
-
----
-
-## 📷 截图
-
-### Android Auto效果
-<div align="center">
-<img src="screenshots/%5BCN%5DAndroidAuto_Player.png" alt="车机播放界面" width="600">
-</div>
-
-### 手机端主界面
-<div align="center">
-<img src="screenshots/%5BCN%5DMain.jpg" alt="主界面" width="400">
-<img src="screenshots/%5BCN%5DSettings.jpg" alt="设置页面" width="400">
-</div>
-
-### 歌词管理
-<div align="center">
-<img src="screenshots/%5BCN%5DLyricsManager.jpg" alt="歌词管理器" width="400">
-<img src="screenshots/%5BCN%5DLyricsEditor.jpg" alt="歌词编辑器" width="400">
-</div>
-
----
-欢迎反馈建议或提交 Issue！  
+Based on AAMediaMate v1.4.5 by gululu1235 and contributors; fork changes are documented in git history. LRCLIB supplies optional online lyric lookup. Lyrics belong to their respective rights holders and are not bundled with the app. Code is licensed under [Apache 2.0](LICENSE). See [NOTICE](NOTICE).

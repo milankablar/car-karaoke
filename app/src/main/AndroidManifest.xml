@@ -4,7 +4,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="com.android.vending.BILLING" />
 
     <queries>
         <package android:name="com.google.android.projection.gearhead" />
@@ -18,11 +17,11 @@
     </queries>
 
     <application
-        android:name=".AAMediaMateApplication"
+        android:name=".CarKaraokeApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@drawable/ic_car_karaoke"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.MediaBridge"
@@ -41,7 +40,7 @@
         </activity>
         <service
             android:name=".MediaNotificationListener"
-            android:label="Media Bridge Notification Listener"
+            android:label="Car Karaoke music access"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
             android:exported="false">
             <intent-filter>
