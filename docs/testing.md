@@ -5,7 +5,7 @@
 - 111 local unit tests pass; lint has no errors.
 - Three focused Android 16 emulator integration/UI tests pass: shared phone/car lyrics and corrections, browser-service rows, and phone/car lifecycle ownership plus landscape.
 - Signed release APK certificate/package/version checks pass; shrinking reduced the APK to roughly 5.5 MB.
-- Obtainium 1.6.15 imported the generated configuration successfully in the emulator. Actual release installation/update status is recorded after publishing.
+- Obtainium 1.6.15 imported the generated configuration, installed 0.1.0, detected 0.1.1 and updated it in the Android 16 emulator. Android reports versionCode 2 and Obtainium as installer. Edited lyrics and metadata stayed byte-for-byte identical; the dark theme survived. See [distribution verification](distribution-verification.md).
 
 ## Automated checks
 

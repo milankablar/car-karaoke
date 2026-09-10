@@ -30,7 +30,7 @@ Screenshots show original synthetic test lyrics on an Android emulator.
 
 ## Current status
 
-Initial release. Automated regression checks and Android 16 emulator UI checks are available. Pixel 8 Pro/Android 17, Desktop Head Unit, physical Android Auto rendering, real music-app coexistence and a complete Obtainium update cycle still require acceptance testing. The first planned physical host is a Mazda CX-90; no vehicle-specific logic is used.
+Version 0.1.1 is available. GitHub CI and signed releases pass, with 111 unit tests and Android 16 emulator UI/integration checks. Obtainium installation and the 0.1.0 → 0.1.1 upgrade were verified in the emulator, preserving edited lyrics, timing metadata and the dark theme. Pixel 8 Pro/Android 17, Desktop Head Unit, physical Android Auto rendering, real music-app coexistence and scheduled background updating still require acceptance testing. The first planned physical host is a Mazda CX-90; no vehicle-specific logic is used.
 
 Android Auto owns the car layout and refresh behavior. The app exposes a moving three-line lyric destination and lyric display metadata, with a compatibility title mode. Word highlighting requires actual word timestamps; ordinary online LRC is line-timed and plain lyrics remain untimed.
 
