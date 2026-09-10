@@ -28,6 +28,8 @@ class KaraokeUiTest {
         instrumentation.uiAutomation.takeScreenshot().let { bitmap -> File(directory, "$name.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }; bitmap.recycle() }
     }
     @Test fun sharedLyricsAndCleanSettings() {
+        compose.activity.getSharedPreferences("presentation", 0).edit().putString("theme", "Light").commit()
+        compose.activityRule.scenario.recreate()
         seed()
         compose.onNodeWithText("Every mile becomes a melody").assertIsDisplayed()
         val state = KaraokeRuntime.coordinator.state.value

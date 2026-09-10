@@ -22,7 +22,7 @@ class MediaBridgeMediaCallback internal constructor(
     )
 
     override fun onMediaButtonEvent(mediaButtonEvent: Intent?): Boolean {
-        if (!MediaBridgeSessionManager.isControllerTrusted()) return false
+        if (!MediaBridgeSessionManager.isControllerTrusted() || !canControlActiveSource()) return false
         val keyEvent = mediaButtonEvent?.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT)
 
         if (isSwapEnabled() && keyEvent?.action == KeyEvent.ACTION_DOWN) {
@@ -45,7 +45,7 @@ class MediaBridgeMediaCallback internal constructor(
     }
 
     override fun onPlay() {
-        if (!MediaBridgeSessionManager.isControllerTrusted()) return
+        if (!MediaBridgeSessionManager.isControllerTrusted() || !canControlActiveSource()) return
         Log.d("MediaBridge", "▶️ onPlay triggered")
         DiagnosticLogger.info(context, DiagnosticModule.MEDIA, "Play requested")
         MediaControllerManager.getActiveController(context)?.transportControls?.play()
@@ -60,7 +60,7 @@ class MediaBridgeMediaCallback internal constructor(
     }
 
     override fun onPause() {
-        if (!MediaBridgeSessionManager.isControllerTrusted()) return
+        if (!MediaBridgeSessionManager.isControllerTrusted() || !canControlActiveSource()) return
         Log.d("MediaBridge", "⏸️ onPause triggered")
         DiagnosticLogger.info(context, DiagnosticModule.MEDIA, "Pause requested")
         MediaControllerManager.getActiveController(context)?.transportControls?.pause()
@@ -68,7 +68,7 @@ class MediaBridgeMediaCallback internal constructor(
     }
 
     override fun onSkipToNext() {
-        if (!MediaBridgeSessionManager.isControllerTrusted()) return
+        if (!MediaBridgeSessionManager.isControllerTrusted() || !canControlActiveSource()) return
         Log.d("MediaBridge", "⏭️ onSkipToNext triggered")
         DiagnosticLogger.info(context, DiagnosticModule.MEDIA, "Skip next requested")
         if (isSwapEnabled()) {
@@ -80,7 +80,7 @@ class MediaBridgeMediaCallback internal constructor(
     }
 
     override fun onSkipToPrevious() {
-        if (!MediaBridgeSessionManager.isControllerTrusted()) return
+        if (!MediaBridgeSessionManager.isControllerTrusted() || !canControlActiveSource()) return
         Log.d("MediaBridge", "⏮️ onSkipToPrevious triggered")
         DiagnosticLogger.info(context, DiagnosticModule.MEDIA, "Skip previous requested")
         if (isSwapEnabled()) {
@@ -92,7 +92,7 @@ class MediaBridgeMediaCallback internal constructor(
     }
 
     override fun onSeekTo(pos: Long) {
-        if (!MediaBridgeSessionManager.isControllerTrusted()) return
+        if (!MediaBridgeSessionManager.isControllerTrusted() || !canControlActiveSource()) return
         Log.d("MediaBridge", "🎯 onSeekTo triggered: $pos ms")
         DiagnosticLogger.info(context, DiagnosticModule.MEDIA, "Seek requested", mapOf("positionMs" to pos))
         MediaControllerManager.getActiveController(context)?.transportControls?.seekTo(pos)
@@ -101,7 +101,7 @@ class MediaBridgeMediaCallback internal constructor(
     }
 
     override fun onRewind() {
-        if (!MediaBridgeSessionManager.isControllerTrusted()) return
+        if (!MediaBridgeSessionManager.isControllerTrusted() || !canControlActiveSource()) return
         val controller = MediaControllerManager.getActiveController(context) ?: return
         val pos = controller.playbackState?.let { MediaInformationRetriever.getCurrentPositionMs(it) } ?: 0L
         val newPos = (pos - 10_000).coerceAtLeast(0L)
@@ -112,7 +112,7 @@ class MediaBridgeMediaCallback internal constructor(
     }
 
     override fun onFastForward() {
-        if (!MediaBridgeSessionManager.isControllerTrusted()) return
+        if (!MediaBridgeSessionManager.isControllerTrusted() || !canControlActiveSource()) return
         val controller = MediaControllerManager.getActiveController(context) ?: return
         val pos = controller.playbackState?.let { MediaInformationRetriever.getCurrentPositionMs(it) } ?: 0L
         val duration = controller.metadata?.getLong(android.media.MediaMetadata.METADATA_KEY_DURATION) ?: 0L
@@ -139,13 +139,13 @@ class MediaBridgeMediaCallback internal constructor(
             if (info != null) {
                 MediaBridgeSessionManager.updateFromMediaInfo(info)
             }
-            requestPlayback(controller)
+            if (SettingsManager.isAppHeadUnitControlEnabled(context, controller.packageName)) requestPlayback(controller)
             sync()
         }
     }
 
     override fun onCustomAction(action: String?, extras: Bundle?) {
-        if (!MediaBridgeSessionManager.isControllerTrusted()) return
+        if (!MediaBridgeSessionManager.isControllerTrusted() || !canControlActiveSource()) return
         Log.d("MediaBridge", "🎯 Custom action triggered: $action")
         
         when (action) {
@@ -174,6 +174,8 @@ class MediaBridgeMediaCallback internal constructor(
             }
         }
     }
+
+    private fun canControlActiveSource(): Boolean = MediaBridgeSessionManager.getCurrentMediaPackage()?.let { SettingsManager.isAppHeadUnitControlEnabled(context, it) } ?: true
 
     private fun isSwapEnabled(): Boolean {
         val controller = MediaControllerManager.getActiveController(context) ?: return false

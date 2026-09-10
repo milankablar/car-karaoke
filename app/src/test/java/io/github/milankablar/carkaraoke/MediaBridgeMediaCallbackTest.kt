@@ -35,6 +35,8 @@ class MediaBridgeMediaCallbackTest {
 
     @Before
     fun setUp() {
+        mockkObject(SettingsManager)
+        every { SettingsManager.isAppHeadUnitControlEnabled(context, SOURCE_PACKAGE) } returns true
         mockkObject(MediaControllerManager)
         mockkObject(MediaInformationRetriever)
         mockkObject(MediaBridgeSessionManager)
@@ -53,6 +55,7 @@ class MediaBridgeMediaCallbackTest {
 
     @After
     fun tearDown() {
+        unmockkObject(SettingsManager)
         unmockkObject(DiagnosticLogger)
         unmockkObject(MediaBridgeSessionManager)
         unmockkObject(MediaInformationRetriever)
@@ -81,6 +84,15 @@ class MediaBridgeMediaCallbackTest {
         callback.onPlayFromMediaId(SOURCE_PACKAGE, null)
         verify(exactly = 0) { MediaBridgeSessionManager.updateFromMediaInfo(any()) }
         org.junit.Assert.assertFalse(called)
+    }
+
+    @Test
+    fun `disabled head unit control permits selection without starting playback`() {
+        every { SettingsManager.isAppHeadUnitControlEnabled(context, SOURCE_PACKAGE) } returns false
+        var played = false
+        MediaBridgeMediaCallback(context) { played = true }.onPlayFromMediaId(SOURCE_PACKAGE, null)
+        verify { MediaControllerManager.select(controller) }
+        org.junit.Assert.assertFalse(played)
     }
 
     private companion object {

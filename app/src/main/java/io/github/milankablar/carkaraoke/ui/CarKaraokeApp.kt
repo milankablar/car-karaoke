@@ -122,7 +122,7 @@ private fun KaraokeScreen(state: KaraokeState, correct: () -> Unit, apps: () -> 
             }
             IconButton(onClick = apps) { Icon(Icons.Default.Devices, "Choose music app") }
         }
-        if (!hasNotificationAccess(context)) {
+        if (!hasNotificationAccess(context) && state.info == null) {
             ElevatedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(20.dp)) {
                     Text("Connect your music", style = MaterialTheme.typography.titleLarge)
@@ -184,7 +184,18 @@ private fun KaraokeScreen(state: KaraokeState, correct: () -> Unit, apps: () -> 
                 TextButton(onClick = correct) { Text("Correct lyrics") }
             }
             val duration = state.info!!.duration
-            if (duration > 0) LinearProgressIndicator(progress = { (state.positionMs.toFloat() / duration).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+            if (duration > 0) {
+                var scrubbing by remember(state.track?.key) { mutableStateOf(false) }
+                var seekPosition by remember(state.track?.key) { mutableFloatStateOf(0f) }
+                Slider(value = if (scrubbing) seekPosition else state.positionMs.toFloat().coerceIn(0f, duration.toFloat()),
+                    onValueChange = { scrubbing = true; seekPosition = it }, valueRange = 0f..duration.toFloat(),
+                    enabled = state.info!!.sourceActions?.let { it and PlaybackState.ACTION_SEEK_TO != 0L } ?: false,
+                    onValueChangeFinished = {
+                        MediaControllerManager.getActiveController(context)?.transportControls?.seekTo(seekPosition.toLong())
+                        scrubbing = false
+                        MediaBridgeSessionManager.requestRefresh("Phone seek", 250)
+                    }, modifier = Modifier.fillMaxWidth())
+            }
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(timeLabel(state.positionMs), style = MaterialTheme.typography.labelSmall)
                 Text(timeLabel(duration), style = MaterialTheme.typography.labelSmall)

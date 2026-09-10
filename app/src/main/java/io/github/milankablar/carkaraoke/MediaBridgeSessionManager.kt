@@ -233,7 +233,6 @@ object MediaBridgeSessionManager {
 
     internal fun isControllerTrusted(): Boolean {
         val ctx = context ?: return false
-        if (currentMediaInfo?.let { !SettingsManager.isAppHeadUnitControlEnabled(ctx, it.appPackageName) } == true) return false
         val caller = runCatching { mediaSession?.currentControllerInfo }.getOrNull() ?: return false
         return MediaClientValidator.isTrusted(ctx, caller.packageName, caller.uid)
     }
