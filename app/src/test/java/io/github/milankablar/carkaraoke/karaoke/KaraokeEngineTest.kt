@@ -82,4 +82,11 @@ class KaraokeEngineTest {
         coordinator.update(null); assertNull(car.value.track)
         coordinator.close()
     }
+    @Test fun `manual lyrics can resolve when the player omits artist metadata`() = runTest {
+        val coordinator = KaraokeCoordinator(backgroundScope, { _, _ -> LyricResolution(LyricsStatus.SYNCED, EnhancedLrcParser.parse("[00:01]Manual"), manual = true) }, { 1 })
+        coordinator.update(info("A", 1500).copy(artist = "")); runCurrent()
+        assertEquals("Manual", coordinator.state.value.resolution.document.lines.single().text)
+        assertTrue(coordinator.state.value.resolution.manual)
+        coordinator.close()
+    }
 }

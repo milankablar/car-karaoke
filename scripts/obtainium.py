@@ -18,10 +18,13 @@ settings = config['additionalSettings']
 config['additionalSettings'] = json.dumps(settings, separators=(',', ':'))
 link = 'https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/' + urllib.parse.quote(json.dumps(config, separators=(',', ':')), safe='')
 files = {'distribution/obtainium.json': json.dumps(config, indent=2)+'\n', 'distribution/obtainium-link.txt': link+'\n'}
+files['app/src/main/assets/obtainium.json'] = files['distribution/obtainium.json']
 for name, content in files.items():
  path = root / name
  if '--check' in sys.argv: assert path.read_text() == content, f'Regenerate {name}'
- else: path.write_text(content)
+ else:
+  path.parent.mkdir(parents=True, exist_ok=True)
+  path.write_text(content)
 assert re.fullmatch(settings['apkFilterRegEx'], 'car-karaoke-0.1.0.apk')
 assert not re.fullmatch(settings['apkFilterRegEx'], 'app-debug.apk')
 print('Obtainium config verified' if '--check' in sys.argv else link)

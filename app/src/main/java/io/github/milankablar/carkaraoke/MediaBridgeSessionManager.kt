@@ -34,6 +34,7 @@ object MediaBridgeSessionManager {
     private var context: Context? = null
     private val mainHandler: Handler by lazy { Handler(Looper.getMainLooper()) }
     private var observedSourceController: MediaController? = null
+    private val sourceRefreshGate = RefreshGate()
     private var pendingSourceRefreshReason: String = "source controller callback"
     private var lastSourceMetadataChangeElapsedRealtimeMs: Long = 0L
     private var stalePositionOverrideMediaKey: String? = null
@@ -73,6 +74,7 @@ object MediaBridgeSessionManager {
     }
 
     private val sourceRefreshRunnable = Runnable {
+        sourceRefreshGate.clear()
         val ctx = context ?: return@Runnable
         val reason = pendingSourceRefreshReason
         DiagnosticLogger.debug(
@@ -150,6 +152,7 @@ object MediaBridgeSessionManager {
         val session = mediaSession ?: return
         val ctx = context ?: return
         mainHandler.removeCallbacks(sourceRefreshRunnable)
+        sourceRefreshGate.clear()
 
         if (info == null || !Global.packageAllowed(ctx, info.appPackageName)) {
             if (info != null) {
@@ -330,8 +333,9 @@ object MediaBridgeSessionManager {
 
     private fun scheduleSourceRefresh(reason: String, delayMs: Long) {
         pendingSourceRefreshReason = reason
+        val delay = sourceRefreshGate.schedule(SystemClock.elapsedRealtime(), delayMs) ?: return
         mainHandler.removeCallbacks(sourceRefreshRunnable)
-        mainHandler.postDelayed(sourceRefreshRunnable, delayMs)
+        mainHandler.postDelayed(sourceRefreshRunnable, delay)
     }
 
     private fun scheduleEndOfMediaRefresh(info: MediaInfo) {
@@ -357,6 +361,7 @@ object MediaBridgeSessionManager {
     }
 
     private fun cancelPendingMediaRefreshes() {
+        sourceRefreshGate.clear()
         mainHandler.removeCallbacks(sourceRefreshRunnable)
         mainHandler.removeCallbacks(endOfMediaRefreshRunnable)
     }

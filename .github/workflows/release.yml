@@ -24,6 +24,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
       - name: Validate release identity and version
         run: python3 scripts/release.py guard
       - name: Prepare signing and SDK

@@ -30,7 +30,7 @@ class KaraokeCoordinator(
         tick()
         ticker?.cancel()
         if (info.isPlaying) ticker = scope.launch { while (isActive) { delay(100); tick() } }
-        if (incoming.title.isBlank() || incoming.artist.isBlank()) {
+        if (incoming.title.isBlank()) {
             generation++; fetch?.cancel()
             mutable.value = mutable.value.copy(resolution = LyricResolution(LyricsStatus.LOADING, message = "Waiting for song details"))
             return

@@ -241,7 +241,7 @@ private fun CleanSettings(appearance: String, setAppearance: (String) -> Unit, n
             SettingLink("Diagnostics", "Review and export troubleshooting details") { navigate("diagnostics") }
         }
         SettingsGroup("CAR KARAOKE") {
-            SettingLink("Get updates with Obtainium", "Install releases directly from GitHub") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/milankablar/car-karaoke#install-and-updates"))) }
+            SettingLink("Get updates with Obtainium", "Install releases directly from GitHub") { openObtainium(context) }
             Text("Version ${BuildConfig.VERSION_NAME} • Built on AAMediaMate", style = MaterialTheme.typography.bodySmall)
         }
     }
@@ -405,5 +405,15 @@ private fun LandscapeKaraoke(state: KaraokeState, correct: () -> Unit) {
                 Text(line.text.ifBlank { "♪" }, fontSize = 26.sp, lineHeight = 34.sp, fontWeight = if (index == state.currentIndex) FontWeight.Bold else FontWeight.Normal, color = if (index == state.currentIndex) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             } else item { Text(state.resolution.document.plainText.ifBlank { state.resolution.status.name.lowercase().replace('_', ' ') }, fontSize = 24.sp) }
         }
+    }
+}
+
+private fun openObtainium(context: android.content.Context) {
+    val configuration = context.assets.open("obtainium.json").bufferedReader().use { it.readText() }
+    val deepLink = "obtainium://app/" + Uri.encode(configuration)
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(deepLink)))
+    } catch (_: android.content.ActivityNotFoundException) {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://apps.obtainium.imranr.dev/redirect?r=" + Uri.encode(deepLink))))
     }
 }

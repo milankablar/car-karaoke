@@ -43,7 +43,9 @@ def package():
     assert f"name='{PACKAGE}'" in badging and f"versionCode='{code}'" in badging and f"versionName='{name}'" in badging
     assert 'application-debuggable' not in badging, 'Debug APK must never be released'
     out = ROOT / 'dist'; out.mkdir(exist_ok=True)
+    for stale in out.glob('car-karaoke-*.apk'): stale.unlink()
     target = out / f'car-karaoke-{name}.apk'; target.write_bytes(apk.read_bytes())
+    assert list(out.glob('*.apk')) == [target], 'Unexpected APK in distribution directory'
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
     (out / 'SHA256SUMS').write_text(f'{digest}  {target.name}\n')
     (out / 'release-metadata.json').write_text(json.dumps(dict(packageId=PACKAGE, versionName=name, versionCode=code, certificateSha256=fingerprint, apkSha256=digest, commit=run('git', 'rev-parse', 'HEAD')), indent=2)+'\n')
