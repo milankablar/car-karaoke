@@ -16,7 +16,7 @@ class KaraokeUiTest {
     private val info = MediaInfo("fixture.music", "Test player", "Open road", "Car Karaoke", "Original test lyrics", 120000, 4500, false, null, null, retrievedAtElapsedRealtimeMs = 1, mediaId = "fixture-1")
     private fun seed() {
         compose.activity.getSharedPreferences("presentation", 0).edit().putString("theme", "Light").commit()
-        runBlocking { KaraokeRuntime.repository.choose(TrackIdentity.from(info), LyricCandidate("fixture", "Test fixture", info.title, info.artist, info.album, info.duration, "[00:00]A little light on the horizon\n[00:04]Every mile becomes a melody\n[00:08]Let the open road sing along\n[00:12]We carry the music home")) }
+        runBlocking { io.github.milankablar.carkaraoke.lyrics.LyricsRepository.deleteLyrics(compose.activity, listOf(TrackIdentity.from(info).key)); KaraokeRuntime.repository.choose(TrackIdentity.from(info), LyricCandidate("fixture", "Test fixture", info.title, info.artist, info.album, info.duration, "[00:00]A little light on the horizon\n[00:04]Every mile becomes a melody\n[00:08]Let the open road sing along\n[00:12]We carry the music home")) }
         compose.runOnIdle { MediaBridgeSessionManager.updateFromMediaInfo(info) }
         compose.waitUntil(10000) { KaraokeRuntime.coordinator.state.value.resolution.status == LyricsStatus.SYNCED }
     }

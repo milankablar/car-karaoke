@@ -13,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      KEYSTORE_FILE: ${{ runner.temp }}/car-karaoke.jks
       KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
       KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       KEY_ALIAS: car-karaoke
@@ -32,8 +31,10 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           umask 077
+          KEYSTORE_FILE="$RUNNER_TEMP/car-karaoke.jks"
+          echo "KEYSTORE_FILE=$KEYSTORE_FILE" >> "$GITHUB_ENV"
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
-          sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-36' 'build-tools;35.0.0'
       - name: Test and build signed APK
         run: |
           echo "$(cat gradle/wrapper/gradle-wrapper.jar.sha256)  gradle/wrapper/gradle-wrapper.jar" | sha256sum --check
@@ -49,7 +50,7 @@ jobs:
           gh release edit "$RELEASE_TAG" --repo milankablar/car-karaoke --draft=false
       - name: Remove signing material
         if: always()
-        run: rm -f "$KEYSTORE_FILE"
+        run: rm -f "$RUNNER_TEMP/car-karaoke.jks"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
