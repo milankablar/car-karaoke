@@ -3,12 +3,12 @@ package io.github.milankablar.carkaraoke.lyrics
 import android.content.Context
 import io.mockk.every
 import io.mockk.mockk
+import java.io.File
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
-import java.io.File
 
 @org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
 class LyricsRepositorySortTest {
@@ -37,14 +37,14 @@ class LyricsRepositorySortTest {
         // Create files
         val file1 = File(tempDir, "SongA_ArtistA.lrt")
         file1.createNewFile()
-        
+
         val file2 = File(tempDir, "SongB_ArtistB.lrt")
         file2.createNewFile()
 
         // Set timestamps ensuring significant difference
         val now = System.currentTimeMillis()
         file1.setLastModified(now - 10000) // Older
-        file2.setLastModified(now)         // Newer
+        file2.setLastModified(now) // Newer
 
         val result = LyricsRepository.getAllLyrics(context)
 

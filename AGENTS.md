@@ -1,41 +1,35 @@
-# Repository Guidelines
+# AGENTS.md
 
-## Project Structure & Module Organization
-- Single Android app module in `app/`.
-- Kotlin sources: `app/src/main/java/io/github/milankablar/carkaraoke`.
-- Resources: `app/src/main/res`; manifest: `app/src/main/AndroidManifest.xml`.
-- Tests: unit in `app/src/test`; instrumentation in `app/src/androidTest`.
-- Gradle config: root `build.gradle.kts`, `settings.gradle.kts`, module `app/build.gradle.kts`.
+## Commands
 
-## Build, Test, and Development Commands
-- Build debug APK: `./gradlew assembleDebug` (Windows: `gradlew.bat assembleDebug`).
-- Install on device/emulator: `./gradlew :app:installDebug`.
-- Unit tests (Robolectric/JUnit): `./gradlew testDebugUnitTest`.
-- Instrumentation tests (requires device): `./gradlew connectedAndroidTest`.
-- Lint and checks: `./gradlew lint` and `./gradlew check`.
+- `./scripts/check.sh` — full local/CI verification gate (Gradle wrapper SHA-256, Kotlin formatting, unit tests, Android Lint, debug APK build, Obtainium config verification, and Python script syntax check)
+- `./scripts/check.sh --format` — auto-format Kotlin sources with Spotless/ktlint
+- `bash gradlew testDebugUnitTest` — run unit and invariant tests
+- `bash gradlew connectedDebugAndroidTest` — run instrumentation tests (requires emulator or device)
+- `python3 scripts/obtainium.py` — regenerate `distribution/obtainium.json`, `distribution/obtainium-link.txt`, and `app/src/main/assets/obtainium.json`
+- `python3 scripts/release.py tag` — validate and preview a release tag (pass `--apply` to create and push the tag)
 
-## Coding Style & Naming Conventions
-- Kotlin “official” style (`gradle.properties`: `kotlin.code.style=official`), 4‑space indent.
-- Package is `io.github.milankablar.carkaraoke`. File names match top‑level class (e.g., `MediaBridgeService.kt`).
-- Naming: Classes `PascalCase`, methods/properties `lowerCamelCase`, constants `UPPER_SNAKE_CASE`.
-- Prefer coroutines over blocking I/O; keep work off main thread.
-- Public APIs: add concise KDoc. Keep visibility as small as possible.
+`scripts/check.sh` auto-detects Homebrew OpenJDK 17 and `~/Library/Android/sdk` on macOS when `JAVA_HOME` or `ANDROID_HOME` are unset. When invoking `gradlew` directly, ensure Java 17 and an Android SDK with API 36 and build-tools `35.0.0` are configured.
 
-## Testing Guidelines
-- Frameworks: JUnit 4, MockK, Robolectric (see `app/build.gradle.kts`).
-- Place unit tests under `app/src/test/...` named `FooTest.kt`; instrumentation under `app/src/androidTest/...` named `FooInstrumentedTest.kt`.
-- Aim to cover new business logic and edge cases; mock Android APIs where helpful.
-- Run locally with `testDebugUnitTest`; verify on device with `connectedAndroidTest`.
+## Architecture
 
-## Commit & Pull Request Guidelines
-- Commits: imperative, concise subject (≤50 chars), explain “what/why”. Example: `Fix media session package name`.
-- Reference issues in body (e.g., `Fixes #123`).
-- PRs: clear description, testing steps, screenshots for UI changes, and notes on config/signing changes.
-- CI hygiene: ensure `assembleDebug`, `lint`, and tests pass before requesting review.
+Single Android module (`app/`) in Kotlin + Jetpack Compose (Material 3). Release package is `io.github.milankablar.carkaraoke`; debug builds append `.dev`.
 
-## Security & Configuration Tips
-- Do not commit secrets or keystores. Release signing uses environment variables KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD. Use explicit --repo milankablar/car-karaoke with gh mutations. Upstream is for fetching only.
-- Keep `applicationId` and min/target SDKs aligned with `app/build.gradle.kts`. JVM target is 11.
+- **Android entrypoints:** `CarKaraokeApplication`, `MainActivity`, `MediaBridgeService` (Android Auto `MediaBrowserServiceCompat`), `MediaNotificationListener`.
+- **Playback & media bridge:** `MediaBridgeSessionManager`, `MediaControllerManager`, `MediaInformationRetriever`, `MediaStateUpdater`, `MediaBridgeMediaCallback`, `MediaClientValidator`.
+- **Karaoke core (`karaoke/`):** `KaraokeCoordinator` (shared `StateFlow<KaraokeState>`), `TrackIdentity`, `PlaybackClock`, `LyricMatcher`, `EnhancedLrcParser`, `CarLyricsPresenter`, `RecordingLyricsRepository`, `CandidateProvider`, `RefreshGate`.
+- **Phone UI (`ui/`):** `CarKaraokeApp` and feature screens.
+- **Storage, backup & diagnostics:** `SettingsManager`, `lyrics/`, `backup/`, `diagnostics/`.
 
-## Quick Orientation
-- Key classes: `MediaBridgeService`, `MediaControllerManager`, `MediaNotificationListener`, `LyricDisplayManager`, `MainActivity` in `app/src/main/java/io/github/milankablar/carkaraoke`.
+See [docs/architecture.md](docs/architecture.md), [docs/testing.md](docs/testing.md), and [docs/releases.md](docs/releases.md) for current design, test status, and release workflow details.
+
+## Rules
+
+- **Verification gate:** Run `./scripts/check.sh` before finishing any change.
+- **Pure domain isolation:** Pure domain files (`KaraokeModels.kt`, `EnhancedLrcParser.kt`, `CarLyricsPresenter.kt`, `RefreshGate.kt`) must never import `android.*` (enforced by `ArchitectureInvariantsTest`).
+- **UI boundary:** `ui/` must never construct `OkHttpClient` or perform raw HTTP calls directly (enforced by `ArchitectureInvariantsTest`).
+- **Fork hygiene:** Never reintroduce upstream `com.gululu.aamediamate` references (enforced by `ArchitectureInvariantsTest`). Keep `upstream` read-only for fetching; always pass `--repo milankablar/car-karaoke` on `gh` mutations.
+- **Vehicle independence:** Never add vehicle-specific APIs, layouts, package checks, or timing assumptions.
+- **Dependency hygiene:** Declare all versions in `gradle/libs.versions.toml`; do not leave unused libraries in `app/build.gradle.kts`.
+- **Secrets & signing:** Never commit keystores or secrets. Release signing reads `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD` from the environment. Never move or overwrite published release tags/APKs.
+- **Commits:** Imperative subject (<= 50 chars) explaining what/why; no `Co-Authored-By` trailers.

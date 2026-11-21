@@ -1,10 +1,10 @@
 package io.github.milankablar.carkaraoke.lyrics
 
 import android.os.SystemClock
+import kotlin.math.ceil
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
-import kotlin.math.ceil
 
 /** Synchronizes lyrics within the caller's job, using a monotonic playback clock. */
 object LyricSyncEngine {

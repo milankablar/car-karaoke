@@ -5,20 +5,19 @@ import android.util.Log
 import io.github.milankablar.carkaraoke.SettingsManager
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticLogger
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticModule
+import java.net.URLEncoder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.net.URLEncoder
 
 object LrcApiProvider : LyricsProvider {
     private val client = OkHttpClient()
 
     override suspend fun getLyricsLrc(context: Context, title: String, artist: String, duration: String): String? = withContext(Dispatchers.IO) {
-        val baseUrl = SettingsManager.getLrcApiBaseUri(context);
-        if (baseUrl.isEmpty())
-        {
+        val baseUrl = SettingsManager.getLrcApiBaseUri(context)
+        if (baseUrl.isEmpty()) {
             DiagnosticLogger.warn(context, DiagnosticModule.LYRICS, "LRC API base URL is not configured")
             return@withContext null
         }

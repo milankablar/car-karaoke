@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ManualLyricsSearchScreen(
     lyricsKey: String,
-    onBack: () -> Unit,
+    onBack: () -> Unit
 ) {
     BackHandler {
         onBack()
@@ -40,8 +40,11 @@ fun ManualLyricsSearchScreen(
             val identity = LyricsRepository.identity(context, lyricsKey)
             title = identity.first
             artist = identity.second
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-        catch (e: Exception) { Toast.makeText(context, e.localizedMessage, Toast.LENGTH_LONG).show() }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Toast.makeText(context, e.localizedMessage, Toast.LENGTH_LONG).show()
+        }
     }
     var searchResult by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
@@ -73,8 +76,11 @@ fun ManualLyricsSearchScreen(
                                     LyricsRepository.saveLyricsText(context, lyricsKey, searchResult ?: return@launch)
                                     Toast.makeText(context, context.getString(R.string.lyrics_saved), Toast.LENGTH_SHORT).show()
                                     onBack()
-                                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                                catch (e: Exception) { message = e.localizedMessage }
+                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    message = e.localizedMessage
+                                }
                             }
                         }) {
                             Icon(Icons.Default.Done, contentDescription = stringResource(id = R.string.save))
@@ -153,9 +159,13 @@ fun ManualLyricsSearchScreen(
                                 } else {
                                     searchResult = result
                                 }
-                            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                            catch (e: Exception) { message = e.localizedMessage }
-                            finally { isLoading = false }
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                message = e.localizedMessage
+                            } finally {
+                                isLoading = false
+                            }
                         }
                     }
                 },

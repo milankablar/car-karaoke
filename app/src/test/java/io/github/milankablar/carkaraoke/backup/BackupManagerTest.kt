@@ -6,6 +6,10 @@ import android.net.Uri
 import io.github.milankablar.carkaraoke.SettingsManager
 import io.github.milankablar.carkaraoke.lyrics.*
 import io.mockk.*
+import java.io.File
+import java.io.IOException
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.test.runTest
 import org.json.JSONArray
 import org.json.JSONObject
@@ -15,10 +19,6 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
-import java.io.File
-import java.io.IOException
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 
 @RunWith(RobolectricTestRunner::class)
 class BackupManagerTest {
@@ -40,7 +40,9 @@ class BackupManagerTest {
         context.getSharedPreferences("media_bridge_settings", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
-    @After fun teardown() { unmockkObject(LyricsStorage) }
+    @After fun teardown() {
+        unmockkObject(LyricsStorage)
+    }
 
     private fun zip(vararg entries: Pair<String, String>): Uri {
         val file = folder.newFile()
@@ -60,8 +62,11 @@ class BackupManagerTest {
     @Test fun invalidSettingsDoNotPublishStagedLyrics() = runTest {
         SettingsManager.setLyricsEnabled(context, false)
         File(directory, "song_artist.lrt").writeText("original")
-        val uri = zip("manifest.json" to manifest(), "lyrics/song_artist.lrt" to "replacement",
-            "settings.json" to """{"lyrics_enabled":true,"bridged_apps":[{}]}""")
+        val uri = zip(
+            "manifest.json" to manifest(),
+            "lyrics/song_artist.lrt" to "replacement",
+            "settings.json" to """{"lyrics_enabled":true,"bridged_apps":[{}]}"""
+        )
         try {
             BackupManager.restoreBackup(context, uri, true, true)
             fail("Expected invalid settings")
@@ -81,8 +86,10 @@ class BackupManagerTest {
     }
 
     @Test fun oversizedEntryBeforeManifestIsRejectedByPreview() = runTest {
-        val uri = zip("unexpected/" to "x".repeat(LyricsStorage.MAX_LYRICS_BYTES + 1),
-            "manifest.json" to manifest(0))
+        val uri = zip(
+            "unexpected/" to "x".repeat(LyricsStorage.MAX_LYRICS_BYTES + 1),
+            "manifest.json" to manifest(0)
+        )
         try {
             BackupManager.readBackupPreview(context, uri)
             fail("Expected bounded decompression")
@@ -90,8 +97,10 @@ class BackupManagerTest {
     }
 
     @Test fun oversizedDirectoryEntryIsRejectedDuringRestore() = runTest {
-        val uri = zip("manifest.json" to manifest(0),
-            "lyrics/" to "x".repeat(LyricsStorage.MAX_LYRICS_BYTES + 1))
+        val uri = zip(
+            "manifest.json" to manifest(0),
+            "lyrics/" to "x".repeat(LyricsStorage.MAX_LYRICS_BYTES + 1)
+        )
         try {
             BackupManager.restoreBackup(context, uri, true, false)
             fail("Expected bounded directory entry")

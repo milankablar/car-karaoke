@@ -8,7 +8,7 @@ object LyricsCleanupManager {
     fun applyRules(
         title: String,
         artist: String,
-        rules: List<LyricsCleanupRule>,
+        rules: List<LyricsCleanupRule>
     ): Pair<String, String> {
         var cleanedTitle = title
         var cleanedArtist = artist

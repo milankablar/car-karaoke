@@ -10,12 +10,12 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.lang.reflect.Method
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import java.lang.reflect.Method
 
 @RunWith(RobolectricTestRunner::class)
 class MediaStateUpdaterArtworkTest {

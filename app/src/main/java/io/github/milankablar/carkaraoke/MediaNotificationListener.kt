@@ -52,8 +52,7 @@ class MediaNotificationListener : NotificationListenerService() {
         sync()
     }
 
-    private fun sync()
-    {
+    private fun sync() {
         MediaBridgeSessionManager.requestRefresh("Media notification changed", 250L)
     }
 }

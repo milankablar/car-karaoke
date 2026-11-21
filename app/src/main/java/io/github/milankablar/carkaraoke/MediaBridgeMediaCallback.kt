@@ -1,10 +1,8 @@
 package io.github.milankablar.carkaraoke
 
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.media.session.MediaController
-import android.media.session.MediaSessionManager
 import android.os.Bundle
 import android.support.v4.media.session.MediaSessionCompat
 import android.util.Log
@@ -147,7 +145,7 @@ class MediaBridgeMediaCallback internal constructor(
     override fun onCustomAction(action: String?, extras: Bundle?) {
         if (!MediaBridgeSessionManager.isControllerTrusted() || !canControlActiveSource()) return
         Log.d("MediaBridge", "🎯 Custom action triggered: $action")
-        
+
         when (action) {
             MediaStateUpdater.ACTION_REWIND_10S -> {
                 onRewind()
@@ -182,8 +180,7 @@ class MediaBridgeMediaCallback internal constructor(
         return SettingsManager.isAppSwapRewindFastForward(context, controller.packageName)
     }
 
-    private fun sync()
-    {
+    private fun sync() {
         MediaBridgeSessionManager.requestRefresh("Transport control", 500L)
     }
 }

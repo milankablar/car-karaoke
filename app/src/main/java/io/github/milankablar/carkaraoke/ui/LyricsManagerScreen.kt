@@ -55,7 +55,9 @@ import io.github.milankablar.carkaraoke.models.LyricsEntry
 import kotlinx.coroutines.launch
 
 enum class LyricsFilterType {
-    All, HasLyrics, NoLyrics
+    All,
+    HasLyrics,
+    NoLyrics
 }
 
 @Composable
@@ -83,8 +85,11 @@ fun LyricsManagerScreen(
     LaunchedEffect(Unit) {
         try {
             fullLyricsList = LyricsRepository.getAllLyrics(context)
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-        catch (e: Exception) { Toast.makeText(context, e.localizedMessage, Toast.LENGTH_LONG).show() }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Toast.makeText(context, e.localizedMessage, Toast.LENGTH_LONG).show()
+        }
     }
 
     val filteredList = remember(fullLyricsList, searchQuery, filterType) {
@@ -99,8 +104,8 @@ fun LyricsManagerScreen(
             .filter { entry ->
                 val keyword = searchQuery.trim().lowercase()
                 keyword.isBlank() ||
-                        entry.title.lowercase().contains(keyword) ||
-                        entry.artist.lowercase().contains(keyword)
+                    entry.title.lowercase().contains(keyword) ||
+                    entry.artist.lowercase().contains(keyword)
             }
     }
 
@@ -253,8 +258,11 @@ fun LyricsManagerScreen(
                                 fullLyricsList = LyricsRepository.getAllLyrics(context)
                                 Toast.makeText(context, context.getString(R.string.deleted_message, selectedKeys.size), Toast.LENGTH_SHORT).show()
                                 selectedKeys = emptySet()
-                            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                            catch (e: Exception) { Toast.makeText(context, e.localizedMessage, Toast.LENGTH_LONG).show() }
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Toast.makeText(context, e.localizedMessage, Toast.LENGTH_LONG).show()
+                            }
                         }
                     }
                 ) {

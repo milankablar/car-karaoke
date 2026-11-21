@@ -2,19 +2,20 @@ package io.github.milankablar.carkaraoke.lyrics
 
 import android.content.Context
 import io.github.milankablar.carkaraoke.models.LyricsEntry
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.io.IOException
 
 object LyricsRepository {
     const val ALL_LYRICS = "*"
     private val _lyricsUpdatedFlow = MutableSharedFlow<String>(
-        extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     val lyricsUpdatedFlow: SharedFlow<String> = _lyricsUpdatedFlow.asSharedFlow()
 

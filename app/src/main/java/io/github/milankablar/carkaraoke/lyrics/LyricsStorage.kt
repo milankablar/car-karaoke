@@ -1,13 +1,13 @@
 package io.github.milankablar.carkaraoke.lyrics
 
 import android.content.Context
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
-import kotlinx.coroutines.sync.Mutex
-import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
+import kotlinx.coroutines.sync.Mutex
+import org.json.JSONObject
 
 /** File operations are called on IO while holding [mutex]. */
 internal object LyricsStorage {
@@ -28,9 +28,12 @@ internal object LyricsStorage {
         return File(LyricCache.getLyricsDir(context), "$key.$extension")
     }
 
-    fun isSafeKey(key: String): Boolean =
-        key.isNotBlank() && key != "." && key != ".." && !key.contains('/') && !key.contains('\\') &&
-            !key.contains('\u0000')
+    fun isSafeKey(key: String): Boolean = key.isNotBlank() &&
+        key != "." &&
+        key != ".." &&
+        !key.contains('/') &&
+        !key.contains('\\') &&
+        !key.contains('\u0000')
 
     fun read(file: File): String {
         if (file.length() > MAX_LYRICS_BYTES) throw IOException("Lyrics file too large")

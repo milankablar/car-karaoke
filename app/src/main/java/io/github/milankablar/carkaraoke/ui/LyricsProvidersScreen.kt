@@ -108,7 +108,7 @@ fun LyricsProvidersScreen(
                     }
                 )
             }
-            
+
             if (providers.none { it.isEnabled }) {
                 item {
                     Card(
@@ -126,7 +126,7 @@ fun LyricsProvidersScreen(
                     }
                 }
             }
-            
+
             // Setup Guidance Link
             item {
                 val setupGuidanceUrl = stringResource(id = R.string.setup_guidance_url)
@@ -164,10 +164,11 @@ private fun ProviderConfigCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (provider.isEnabled) 
-                MaterialTheme.colorScheme.surface 
-            else 
+            containerColor = if (provider.isEnabled) {
+                MaterialTheme.colorScheme.surface
+            } else {
                 MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            }
         )
     ) {
         Column(
@@ -190,16 +191,16 @@ private fun ProviderConfigCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                
+
                 Switch(
                     checked = provider.isEnabled,
                     onCheckedChange = onEnabledChange
                 )
             }
-            
+
             if (provider.isEnabled) {
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 // Priority controls
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -211,7 +212,7 @@ private fun ProviderConfigCard(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    
+
                     Row {
                         OutlinedButton(
                             onClick = onPriorityUp,
@@ -220,9 +221,9 @@ private fun ProviderConfigCard(
                         ) {
                             Text("↑", style = MaterialTheme.typography.bodyLarge)
                         }
-                        
+
                         Spacer(modifier = Modifier.width(8.dp))
-                        
+
                         OutlinedButton(
                             onClick = onPriorityDown,
                             modifier = Modifier.size(36.dp),
@@ -232,7 +233,7 @@ private fun ProviderConfigCard(
                         }
                     }
                 }
-                
+
                 // Provider-specific configuration
                 when (provider.id) {
                     "Spotify" -> {

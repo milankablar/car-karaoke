@@ -10,13 +10,13 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.lang.reflect.Method
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import java.lang.reflect.Method
 
 @RunWith(RobolectricTestRunner::class)
 class LyricDisplayManagerTest {
@@ -69,13 +69,13 @@ class LyricDisplayManagerTest {
         verify { mediaSession.setMetadata(capture(slot)) }
 
         val metadata = slot.captured
-        
+
         // Verify Album is always "From [App Name]"
         assertEquals("From MusicApp", metadata.getString(MediaMetadataCompat.METADATA_KEY_ALBUM))
-        
+
         // Verify Title is the lyric line
         assertEquals("Singing lyrics...", metadata.getString(MediaMetadataCompat.METADATA_KEY_TITLE))
-        
+
         // Verify Artist is "Title - Artist - Album"
         assertEquals("Song Title - Artist Name - Album Name", metadata.getString(MediaMetadataCompat.METADATA_KEY_ARTIST))
     }

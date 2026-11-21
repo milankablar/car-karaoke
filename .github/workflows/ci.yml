@@ -22,10 +22,7 @@ jobs:
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-36' 'build-tools;35.0.0'
       - name: Verify, test and build
-        run: |
-          echo "$(cat gradle/wrapper/gradle-wrapper.jar.sha256)  gradle/wrapper/gradle-wrapper.jar" | sha256sum --check
-          bash gradlew testDebugUnitTest lintDebug assembleDebug --console=plain
-          python3 scripts/obtainium.py --check
+        run: ./scripts/check.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

@@ -39,7 +39,7 @@ jobs:
       - name: Test and build signed APK
         run: |
           echo "$(cat gradle/wrapper/gradle-wrapper.jar.sha256)  gradle/wrapper/gradle-wrapper.jar" | sha256sum --check
-          bash gradlew testReleaseUnitTest lintRelease assembleRelease --console=plain
+          bash gradlew spotlessCheck testReleaseUnitTest lintRelease assembleRelease --console=plain
           python3 scripts/obtainium.py --check
           python3 scripts/release.py package
       - name: Publish immutable release

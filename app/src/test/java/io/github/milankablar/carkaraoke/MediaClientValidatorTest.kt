@@ -26,22 +26,29 @@ class MediaClientValidatorTest {
         every { packages.getPackagesForUid(any()) } returns arrayOf(auto)
         every { packages.hasSigningCertificate(any<String>(), any<ByteArray>(), any<Int>()) } returns false
     }
-    @After fun teardown() { unmockkStatic(MediaSessionManager::class) }
+
+    @After fun teardown() {
+        unmockkStatic(MediaSessionManager::class)
+    }
 
     @Test fun spoofedPackageIsRejected() {
         assertFalse(MediaClientValidator.isTrusted(context, "unrelated.app", uid))
     }
+
     @Test fun packageNameAloneDoesNotGrantAccess() {
         assertFalse(MediaClientValidator.isTrusted(context, auto, uid))
     }
+
     @Test fun productionAutoCertificateIsAccepted() {
         every { packages.hasSigningCertificate(auto, any<ByteArray>(), PackageManager.CERT_INPUT_SHA256) } returns true
         assertTrue(MediaClientValidator.isTrusted(context, auto, uid))
     }
+
     @Test fun platformAuthorizedControllerIsAccepted() {
         every { sessions.isTrustedForMediaControl(any()) } returns true
         assertTrue(MediaClientValidator.isTrusted(context, auto, uid))
     }
+
     @Test fun ownUidIsAcceptedOnlyWithMatchingPackage() {
         assertTrue(MediaClientValidator.isTrusted(context, auto, Process.myUid()))
         assertFalse(MediaClientValidator.isTrusted(context, "wrong", Process.myUid()))

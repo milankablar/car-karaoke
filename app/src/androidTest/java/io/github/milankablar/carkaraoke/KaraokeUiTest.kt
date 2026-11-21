@@ -5,18 +5,21 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.milankablar.carkaraoke.karaoke.*
 import io.github.milankablar.carkaraoke.models.MediaInfo
+import java.io.File
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
-import org.junit.Assert.*
-import java.io.File
 
 class KaraokeUiTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
     private val info = MediaInfo("fixture.music", "Test player", "Open road", "Car Karaoke", "Original test lyrics", 120000, 4500, false, null, null, retrievedAtElapsedRealtimeMs = 1, mediaId = "fixture-1")
     private fun seed() {
         compose.activity.getSharedPreferences("presentation", 0).edit().putString("theme", "Light").commit()
-        runBlocking { io.github.milankablar.carkaraoke.lyrics.LyricsRepository.deleteLyrics(compose.activity, listOf(TrackIdentity.from(info).key)); KaraokeRuntime.repository.choose(TrackIdentity.from(info), LyricCandidate("fixture", "Test fixture", info.title, info.artist, info.album, info.duration, "[00:00]A little light on the horizon\n[00:04]Every mile becomes a melody\n[00:08]Let the open road sing along\n[00:12]We carry the music home")) }
+        runBlocking {
+            io.github.milankablar.carkaraoke.lyrics.LyricsRepository.deleteLyrics(compose.activity, listOf(TrackIdentity.from(info).key))
+            KaraokeRuntime.repository.choose(TrackIdentity.from(info), LyricCandidate("fixture", "Test fixture", info.title, info.artist, info.album, info.duration, "[00:00]A little light on the horizon\n[00:04]Every mile becomes a melody\n[00:08]Let the open road sing along\n[00:12]We carry the music home"))
+        }
         compose.runOnIdle { MediaBridgeSessionManager.updateFromMediaInfo(info) }
         compose.waitUntil(10000) { KaraokeRuntime.coordinator.state.value.resolution.status == LyricsStatus.SYNCED }
     }
@@ -25,8 +28,12 @@ class KaraokeUiTest {
         android.os.SystemClock.sleep(350)
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val directory = File(instrumentation.targetContext.getExternalFilesDir(null), "screenshots").apply { mkdirs() }
-        instrumentation.uiAutomation.takeScreenshot().let { bitmap -> File(directory, "$name.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }; bitmap.recycle() }
+        instrumentation.uiAutomation.takeScreenshot().let { bitmap ->
+            File(directory, "$name.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            bitmap.recycle()
+        }
     }
+
     @Test fun sharedLyricsAndCleanSettings() {
         compose.activity.getSharedPreferences("presentation", 0).edit().putString("theme", "Light").commit()
         compose.activityRule.scenario.recreate()
@@ -49,6 +56,7 @@ class KaraokeUiTest {
         assertEquals(250L, KaraokeRuntime.coordinator.state.value.resolution.offsetMs)
         capture("timing")
     }
+
     @Test fun landscapeAndLifecycleOwnership() {
         seed()
         compose.runOnIdle { MediaBridgeSessionManager.acquire(compose.activity, "car-test") }
@@ -65,15 +73,21 @@ class KaraokeUiTest {
         compose.runOnIdle { MediaBridgeSessionManager.relinquish("car-test") }
         assertNotNull(KaraokeRuntime.coordinator.state.value.track)
     }
+
     @Test fun browserServicePublishesSharedWindow() {
         val connected = java.util.concurrent.CountDownLatch(1)
         lateinit var browser: android.support.v4.media.MediaBrowserCompat
         compose.runOnIdle {
-            browser = android.support.v4.media.MediaBrowserCompat(compose.activity,
+            browser = android.support.v4.media.MediaBrowserCompat(
+                compose.activity,
                 android.content.ComponentName(compose.activity, MediaBridgeService::class.java),
                 object : android.support.v4.media.MediaBrowserCompat.ConnectionCallback() {
-                    override fun onConnected() { connected.countDown() }
-                }, null)
+                    override fun onConnected() {
+                        connected.countDown()
+                    }
+                },
+                null
+            )
             browser.connect()
         }
         try {
@@ -82,15 +96,21 @@ class KaraokeUiTest {
             val received = java.util.concurrent.CountDownLatch(1)
             val titles = java.util.concurrent.atomic.AtomicReference<List<String>>()
             compose.runOnIdle {
-                browser.subscribe("lyrics", object : android.support.v4.media.MediaBrowserCompat.SubscriptionCallback() {
-                    override fun onChildrenLoaded(parentId: String, children: MutableList<android.support.v4.media.MediaBrowserCompat.MediaItem>) {
-                        titles.set(children.map { it.description.title.toString() }); received.countDown()
+                browser.subscribe(
+                    "lyrics",
+                    object : android.support.v4.media.MediaBrowserCompat.SubscriptionCallback() {
+                        override fun onChildrenLoaded(parentId: String, children: MutableList<android.support.v4.media.MediaBrowserCompat.MediaItem>) {
+                            titles.set(children.map { it.description.title.toString() })
+                            received.countDown()
+                        }
                     }
-                })
+                )
             }
             assertTrue("Lyric browser rows", received.await(10, java.util.concurrent.TimeUnit.SECONDS))
             assertEquals(3, titles.get().size)
             assertTrue(titles.get().contains("▶ Every mile becomes a melody"))
-        } finally { compose.runOnIdle { browser.disconnect() } }
+        } finally {
+            compose.runOnIdle { browser.disconnect() }
+        }
     }
 }

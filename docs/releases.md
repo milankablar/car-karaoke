@@ -6,7 +6,7 @@ For a new release:
 
 1. Update both fields in `version.properties`; never reuse or decrease versionCode.
 2. Update `docs/release-notes.md`, run checks, commit and push `main`.
-3. Run `python3 scripts/release.py tag` using an authenticated `gh` CLI.
+3. Run `python3 scripts/release.py tag` to validate and preview the release, then `python3 scripts/release.py tag --apply` using an authenticated `gh` CLI.
 4. Follow the Release workflow in GitHub Actions. A failed build never publishes a release. If publishing failed after a draft was created, inspect and finish that draft; the guard intentionally refuses overwriting an existing release.
 
 One universal `car-karaoke-X.Y.Z.apk` is published with `SHA256SUMS` and `release-metadata.json`. The same package and certificate are used for every update. Upstream tags do not trigger releases. The development package cannot overwrite the release package.

@@ -4,7 +4,6 @@ package io.github.milankablar.carkaraoke.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,9 +19,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import io.github.milankablar.carkaraoke.Global
 import io.github.milankablar.carkaraoke.R
 import io.github.milankablar.carkaraoke.SettingsManager
-import io.github.milankablar.carkaraoke.Global
 import io.github.milankablar.carkaraoke.models.BridgedApp
 import java.text.SimpleDateFormat
 import java.util.*
@@ -35,7 +34,7 @@ fun BridgedAppsScreen(onBack: () -> Unit) {
 
     val context = LocalContext.current
     var bridgedApps by remember { mutableStateOf(SettingsManager.getBridgedApps(context)) }
-    
+
     // Refresh the list when the screen is composed
     LaunchedEffect(Unit) {
         bridgedApps = SettingsManager.getBridgedApps(context)
@@ -118,7 +117,7 @@ private fun BridgedAppItem(
     val isNative = remember(app.packageName) { Global.isAndroidAutoApp(context, app.packageName) }
     val ignoreNative = remember { SettingsManager.getIgnoreNativeAutoApps(context) }
     val forcedDisabled = isNative && ignoreNative
-    
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -153,7 +152,7 @@ private fun BridgedAppItem(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                
+
                 Icon(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     contentDescription = null

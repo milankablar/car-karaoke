@@ -7,24 +7,31 @@ import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.util.Log
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticLogger
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticModule
+import io.github.milankablar.carkaraoke.karaoke.*
 import io.github.milankablar.carkaraoke.models.MediaInfo
 import kotlin.math.abs
-import io.github.milankablar.carkaraoke.karaoke.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import android.support.v4.media.MediaMetadataCompat
 
 @OptIn(kotlinx.coroutines.FlowPreview::class)
 object MediaBridgeSessionManager {
     private val owners = mutableSetOf<String>()
     private var karaokeJob: Job? = null
     private val runtimeScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    fun acquire(context: Context, owner: String) { owners.add(owner); init(context); refreshCurrentSession() }
-    fun relinquish(owner: String) { owners.remove(owner); if (owners.isEmpty()) release() }
+    fun acquire(context: Context, owner: String) {
+        owners.add(owner)
+        init(context)
+        refreshCurrentSession()
+    }
+    fun relinquish(owner: String) {
+        owners.remove(owner)
+        if (owners.isEmpty()) release()
+    }
     private var mediaSession: MediaSessionCompat? = null
     private var mediaStateUpdater: MediaStateUpdater? = null
     private var lyricDisplayManager: LyricDisplayManager? = null
@@ -116,7 +123,7 @@ object MediaBridgeSessionManager {
             setCallback(MediaBridgeMediaCallback(appContext))
             setFlags(
                 MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
-                        MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
+                    MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
             )
             isActive = true
         }
@@ -403,9 +410,9 @@ object MediaBridgeSessionManager {
             nowElapsedRealtimeMs = nowMs
         )
         val shouldContinueOverride = stalePositionOverrideMediaKey == mediaKey &&
-                info.isPlaying &&
-                info.position > NEW_MEDIA_STALE_POSITION_THRESHOLD_MS &&
-                info.position - getStalePositionOverrideMs(nowMs) > STALE_POSITION_CLEAR_TOLERANCE_MS
+            info.isPlaying &&
+            info.position > NEW_MEDIA_STALE_POSITION_THRESHOLD_MS &&
+            info.position - getStalePositionOverrideMs(nowMs) > STALE_POSITION_CLEAR_TOLERANCE_MS
 
         if (!shouldStartOverride && !shouldContinueOverride) {
             if (stalePositionOverrideMediaKey == mediaKey) {
@@ -456,7 +463,10 @@ object MediaBridgeSessionManager {
         if (previousInfo == null || isSameMedia(previousInfo, info)) return false
         if (previousInfo.appPackageName != info.appPackageName) return false
         if (previousInfo.title == info.title && previousInfo.artist == info.artist &&
-            (previousInfo.mediaId.isNullOrBlank() || info.mediaId.isNullOrBlank())) return false
+            (previousInfo.mediaId.isNullOrBlank() || info.mediaId.isNullOrBlank())
+        ) {
+            return false
+        }
         if (!info.isPlaying || info.position <= NEW_MEDIA_STALE_POSITION_THRESHOLD_MS) return false
 
         if (isPlaybackStateOlderThanMetadata(info, lastMetadataChangeElapsedRealtimeMs)) {
@@ -478,22 +488,20 @@ object MediaBridgeSessionManager {
         val sourcePositionMs = MediaInformationRetriever.getCurrentPositionMs(state)
         val correctedPositionMs = getStalePositionOverrideMs()
         return sourcePositionMs <= NEW_MEDIA_STALE_POSITION_THRESHOLD_MS ||
-                abs(sourcePositionMs - correctedPositionMs) <= STALE_POSITION_CLEAR_TOLERANCE_MS ||
-                !isPlaybackStateOlderThanMetadata(
-                    info.copy(playbackStateUpdateTimeMs = state.lastPositionUpdateTime),
-                    lastSourceMetadataChangeElapsedRealtimeMs
-                )
+            abs(sourcePositionMs - correctedPositionMs) <= STALE_POSITION_CLEAR_TOLERANCE_MS ||
+            !isPlaybackStateOlderThanMetadata(
+                info.copy(playbackStateUpdateTimeMs = state.lastPositionUpdateTime),
+                lastSourceMetadataChangeElapsedRealtimeMs
+            )
     }
 
     private fun isPlaybackStateOlderThanMetadata(
         info: MediaInfo,
         lastMetadataChangeElapsedRealtimeMs: Long
-    ): Boolean {
-        return lastMetadataChangeElapsedRealtimeMs > 0L &&
-                info.playbackStateUpdateTimeMs > 0L &&
-                info.playbackStateUpdateTimeMs + STATE_METADATA_STALE_TOLERANCE_MS <
-                lastMetadataChangeElapsedRealtimeMs
-    }
+    ): Boolean = lastMetadataChangeElapsedRealtimeMs > 0L &&
+        info.playbackStateUpdateTimeMs > 0L &&
+        info.playbackStateUpdateTimeMs + STATE_METADATA_STALE_TOLERANCE_MS <
+        lastMetadataChangeElapsedRealtimeMs
 
     private fun getStalePositionOverrideMs(
         nowElapsedRealtimeMs: Long = SystemClock.elapsedRealtime()
@@ -508,20 +516,16 @@ object MediaBridgeSessionManager {
         stalePositionRecheckCount = 0
     }
 
-    private fun isSameMedia(first: MediaInfo, second: MediaInfo): Boolean {
-        return first.appPackageName == second.appPackageName && first.title.trim() == second.title.trim() &&
-            first.artist.trim() == second.artist.trim() &&
-            (first.mediaId.isNullOrBlank() || second.mediaId.isNullOrBlank() || first.mediaId == second.mediaId)
-    }
+    private fun isSameMedia(first: MediaInfo, second: MediaInfo): Boolean = first.appPackageName == second.appPackageName && first.title.trim() == second.title.trim() &&
+        first.artist.trim() == second.artist.trim() &&
+        (first.mediaId.isNullOrBlank() || second.mediaId.isNullOrBlank() || first.mediaId == second.mediaId)
 
-    private fun mediaIdentityKey(info: MediaInfo): String {
-        return listOf(
-            info.appPackageName,
-            info.title.trim(),
-            info.artist.trim(),
-            info.mediaId.orEmpty()
-        ).joinToString("|")
-    }
+    private fun mediaIdentityKey(info: MediaInfo): String = listOf(
+        info.appPackageName,
+        info.title.trim(),
+        info.artist.trim(),
+        info.mediaId.orEmpty()
+    ).joinToString("|")
 
     internal fun calculateEndOfMediaRefreshDelay(positionMs: Long, durationMs: Long, speed: Float = 1f): Long {
         if (durationMs <= 0L) return MIN_END_OF_MEDIA_REFRESH_DELAY_MS

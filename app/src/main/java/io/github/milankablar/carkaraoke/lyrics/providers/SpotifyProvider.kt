@@ -5,13 +5,13 @@ import android.util.Log
 import io.github.milankablar.carkaraoke.SettingsManager
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticLogger
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticModule
+import java.net.URLEncoder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
-import java.net.URLEncoder
 
 object SpotifyProvider : LyricsProvider {
     private const val BASE_URL = "https://spotify-web-api3.p.rapidapi.com/v1/social/spotify/musixmatchsearchlyrics"
@@ -20,8 +20,7 @@ object SpotifyProvider : LyricsProvider {
 
     override suspend fun getLyricsLrc(context: Context, title: String, artist: String, duration: String): String? = withContext(Dispatchers.IO) {
         val apiKey = SettingsManager.getApiKey(context)
-        if (apiKey.isEmpty())
-        {
+        if (apiKey.isEmpty()) {
             DiagnosticLogger.warn(context, DiagnosticModule.LYRICS, "Spotify API key is not configured")
             return@withContext null
         }

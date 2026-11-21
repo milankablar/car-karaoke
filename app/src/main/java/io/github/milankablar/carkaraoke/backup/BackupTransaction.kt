@@ -4,10 +4,10 @@ import android.content.Context
 import io.github.milankablar.carkaraoke.SettingsManager
 import io.github.milankablar.carkaraoke.lyrics.LyricCache
 import io.github.milankablar.carkaraoke.lyrics.LyricsStorage
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import org.json.JSONArray
+import org.json.JSONObject
 
 /** Journaled restore: a failed or interrupted commit is rolled back before the next storage access. */
 internal object BackupTransaction {
@@ -63,13 +63,16 @@ internal object BackupTransaction {
             LyricCache.clearAllMemoryCache()
             LyricsStorage.revision++
         } catch (e: Exception) {
-            try { recover(context, lyricsDir) } catch (rollback: Exception) { e.addSuppressed(rollback) }
+            try {
+                recover(context, lyricsDir)
+            } catch (rollback: Exception) {
+                e.addSuppressed(rollback)
+            }
             throw e
         }
         // Committed data is valid even if cleanup must be retried on the next access.
         transaction.deleteRecursively()
     }
 
-    fun isSafeName(name: String): Boolean =
-        LyricsStorage.isSafeKey(name) && (name.endsWith(".lrt") || name.endsWith(".json"))
+    fun isSafeName(name: String): Boolean = LyricsStorage.isSafeKey(name) && (name.endsWith(".lrt") || name.endsWith(".json"))
 }

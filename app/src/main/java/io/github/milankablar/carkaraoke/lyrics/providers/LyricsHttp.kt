@@ -1,14 +1,14 @@
 package io.github.milankablar.carkaraoke.lyrics.providers
 
+import java.io.IOException
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import java.io.IOException
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 internal data class LyricsHttpResponse(val code: Int, val body: String?)
 
@@ -24,7 +24,7 @@ internal suspend fun OkHttpClient.fetchLyrics(request: Request): LyricsHttpRespo
         override fun onResponse(call: Call, response: Response) {
             try {
                 val result = response.use {
-                    val body = it.body()
+                    val body = it.body
                     if ((body?.contentLength() ?: 0) > 2 * 1024 * 1024) throw IOException("Lyrics response too large")
                     val text = body?.charStream()?.use { reader ->
                         val buffer = CharArray(4096)
@@ -37,7 +37,7 @@ internal suspend fun OkHttpClient.fetchLyrics(request: Request): LyricsHttpRespo
                         }
                         output.toString()
                     }
-                    LyricsHttpResponse(it.code(), text)
+                    LyricsHttpResponse(it.code, text)
                 }
                 continuation.resume(result)
             } catch (e: Exception) {

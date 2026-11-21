@@ -52,14 +52,24 @@ def package():
     print(f'Validated {target.name}: versionCode {code}, expected signing certificate')
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(); parser.add_argument('action', choices=['guard', 'package', 'tag']); args = parser.parse_args()
-    tag = f'car-karaoke-v{version()[0]}'
-    if args.action == 'package': package()
-    elif args.action == 'guard': guard(os.environ.get('GITHUB_REF_NAME', tag))
+    parser = argparse.ArgumentParser()
+    parser.add_argument('action', choices=['guard', 'package', 'tag'])
+    parser.add_argument('--apply', action='store_true', help='Create and push the release tag (preview only when omitted)')
+    args = parser.parse_args()
+    name, code = version()
+    tag = f'car-karaoke-v{name}'
+    if args.action == 'package':
+        package()
+    elif args.action == 'guard':
+        guard(os.environ.get('GITHUB_REF_NAME', tag))
     else:
         assert not run('git', 'status', '--porcelain'), 'Commit changes first'
         assert run('git', 'branch', '--show-current') == 'main', 'Release from main'
         guard(tag)
-        run('git', 'tag', '-a', tag, '-m', f'Car Karaoke {version()[0]}')
-        run('git', 'push', 'origin', tag)
-        print(f'Pushed {tag}. Follow the Release workflow: https://github.com/{REPO}/actions')
+        commit = run('git', 'rev-parse', '--short', 'HEAD')
+        if not args.apply:
+            print(f'Dry run passed: ready to tag {tag} (versionCode {code}) at {commit}. Re-run with --apply to push.')
+        else:
+            run('git', 'tag', '-a', tag, '-m', f'Car Karaoke {name}')
+            run('git', 'push', 'origin', tag)
+            print(f'Pushed {tag}. Follow the Release workflow: https://github.com/{REPO}/actions')

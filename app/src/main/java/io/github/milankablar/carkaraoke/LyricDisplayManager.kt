@@ -10,8 +10,8 @@ import io.github.milankablar.carkaraoke.diagnostics.DiagnosticModule
 import io.github.milankablar.carkaraoke.lyrics.LyricCache
 import io.github.milankablar.carkaraoke.lyrics.LyricSyncEngine
 import io.github.milankablar.carkaraoke.lyrics.LyricsRepository
-import kotlinx.coroutines.*
 import io.github.milankablar.carkaraoke.models.MediaInfo
+import kotlinx.coroutines.*
 
 /** Owns lyric work for one service; all state and metadata writes stay on the main thread. */
 class LyricDisplayManager(
@@ -28,8 +28,13 @@ class LyricDisplayManager(
         stop()
         if (!SettingsManager.getLyricsEnabled(context) ||
             !SettingsManager.isAppLyricsEnabled(context, info.appPackageName) ||
-            !info.isPlaying || info.playbackSpeed <= 0f || info.title.isBlank() || info.artist.isBlank()
-        ) return
+            !info.isPlaying ||
+            info.playbackSpeed <= 0f ||
+            info.title.isBlank() ||
+            info.artist.isBlank()
+        ) {
+            return
+        }
         val requestGeneration = generation
         val key = LyricsRepository.keyFor(info.title, info.artist)
         lyricsUpdateJob = lyricsScope.launch {
@@ -56,7 +61,10 @@ class LyricDisplayManager(
                     acquire((remaining + 60_000).coerceIn(60_000, 6 * 60 * 60_000))
                 }
                 LyricSyncEngine.sync(
-                    lyrics, position, SettingsManager.getLyricsTimingOffset(context).toLong(), info.playbackSpeed
+                    lyrics,
+                    position,
+                    SettingsManager.getLyricsTimingOffset(context).toLong(),
+                    info.playbackSpeed
                 ) { line, nextLine ->
                     if (requestGeneration == generation) updateLyricLine(mediaSession, info, line, nextLine)
                 }
@@ -117,14 +125,13 @@ class LyricDisplayManager(
             if (artistText.isNotBlank()) {
                 metadataBuilder.putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artistText)
             }
-
         } else {
             // When no lyric is displayed, restore the original media info formatted correctly
             metadataBuilder.putString(MediaMetadataCompat.METADATA_KEY_TITLE, originalInfo.title)
 
             val artist = originalInfo.artist.takeIf { it.isNotBlank() }
             val album = originalInfo.album.takeIf { it.isNotBlank() }
-            
+
             val artistText = if (showAlbumName) {
                 listOfNotNull(artist, album).joinToString(" - ")
             } else {

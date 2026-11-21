@@ -2,6 +2,8 @@ package io.github.milankablar.carkaraoke.lyrics
 
 import android.content.Context
 import android.content.ContextWrapper
+import java.io.File
+import java.util.Locale
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -11,8 +13,6 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
-import java.io.File
-import java.util.Locale
 
 @RunWith(RobolectricTestRunner::class)
 class LyricsRepositoryTest {
@@ -52,7 +52,9 @@ class LyricsRepositoryTest {
             LyricsRepository.saveLyricsText(context, "song_artist", "[00:01]first\n[00:59.75]next")
             LyricsRepository.shiftLyricsByMs(context, listOf("song_artist"), 500)
             assertEquals("[00:01.50]first\n[01:00.25]next", LyricsRepository.loadLyricsText(context, "song_artist"))
-        } finally { Locale.setDefault(previous) }
+        } finally {
+            Locale.setDefault(previous)
+        }
     }
 
     @Test fun keysAreUnambiguousAndSafe() {
@@ -70,8 +72,14 @@ class LyricsRepositoryTest {
     }
 
     @Test fun listIsSortedByLastModified() = runTest {
-        val old = File(directory, "Old_Artist.lrt").apply { writeText("old"); setLastModified(1000) }
-        val newer = File(directory, "New_Artist.lrt").apply { writeText("new"); setLastModified(2000) }
+        val old = File(directory, "Old_Artist.lrt").apply {
+            writeText("old")
+            setLastModified(1000)
+        }
+        val newer = File(directory, "New_Artist.lrt").apply {
+            writeText("new")
+            setLastModified(2000)
+        }
         assertEquals(listOf("New", "Old"), LyricsRepository.getAllLyrics(context).map { it.title })
     }
 }

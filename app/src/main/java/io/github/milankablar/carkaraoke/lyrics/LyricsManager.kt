@@ -6,9 +6,9 @@ import io.github.milankablar.carkaraoke.SettingsManager
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticLogger
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticModule
 import io.github.milankablar.carkaraoke.lyrics.providers.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.CancellationException
 
 data class LyricLine(val timeSec: Float, val text: String)
 
@@ -31,7 +31,7 @@ object LyricsManager {
                 "providers" to enabledProviders.joinToString(",") { it.id }
             )
         )
-        
+
         var lastFailure: Exception? = null
         for (providerConfig in enabledProviders) {
             try {

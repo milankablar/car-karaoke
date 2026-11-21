@@ -13,10 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -44,7 +44,7 @@ import java.util.UUID
 
 @Composable
 fun LyricsCleanupRulesScreen(
-    onBack: () -> Unit,
+    onBack: () -> Unit
 ) {
     BackHandler {
         onBack()
@@ -208,7 +208,7 @@ private fun CleanupRuleCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
+    onMoveDown: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -302,7 +302,7 @@ private fun CleanupRuleCard(
 private fun LyricsCleanupRuleEditorDialog(
     rule: LyricsCleanupRule,
     onDismiss: () -> Unit,
-    onSave: (LyricsCleanupRule) -> Unit,
+    onSave: (LyricsCleanupRule) -> Unit
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current

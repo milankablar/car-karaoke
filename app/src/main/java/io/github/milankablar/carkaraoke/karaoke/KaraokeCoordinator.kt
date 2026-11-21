@@ -2,8 +2,8 @@ package io.github.milankablar.carkaraoke.karaoke
 
 import android.content.Context
 import android.os.SystemClock
-import io.github.milankablar.carkaraoke.models.MediaInfo
 import io.github.milankablar.carkaraoke.lyrics.LyricsRepository
+import io.github.milankablar.carkaraoke.models.MediaInfo
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -21,7 +21,11 @@ class KaraokeCoordinator(
     fun update(info: MediaInfo?, force: Boolean = false) {
         val old = mutable.value
         if (info == null) {
-            generation++; fetch?.cancel(); ticker?.cancel(); mutable.value = KaraokeState(revision = generation); return
+            generation++
+            fetch?.cancel()
+            ticker?.cancel()
+            mutable.value = KaraokeState(revision = generation)
+            return
         }
         val incoming = TrackIdentity.from(info)
         val changed = old.track?.sameRecording(incoming) != true || (old.track?.durationMs == 0L && incoming.durationMs > 0L) || (old.track?.mediaId.isNullOrBlank() && !incoming.mediaId.isNullOrBlank())
@@ -29,9 +33,17 @@ class KaraokeCoordinator(
         mutable.value = old.copy(info = info, track = track, resolution = if (changed) LyricResolution(LyricsStatus.LOADING) else old.resolution)
         tick()
         ticker?.cancel()
-        if (info.isPlaying) ticker = scope.launch { while (isActive) { delay(100); tick() } }
+        if (info.isPlaying) {
+            ticker = scope.launch {
+                while (isActive) {
+                    delay(100)
+                    tick()
+                }
+            }
+        }
         if (incoming.title.isBlank()) {
-            generation++; fetch?.cancel()
+            generation++
+            fetch?.cancel()
             mutable.value = mutable.value.copy(resolution = LyricResolution(LyricsStatus.LOADING, message = "Waiting for song details"))
             return
         }
@@ -47,7 +59,9 @@ class KaraokeCoordinator(
             }
         }
     }
-    fun reportError(message: String) { mutable.value = mutable.value.copy(resolution = mutable.value.resolution.copy(message = message)) }
+    fun reportError(message: String) {
+        mutable.value = mutable.value.copy(resolution = mutable.value.resolution.copy(message = message))
+    }
     fun refresh() = update(mutable.value.info, true)
     private fun tick() {
         val current = mutable.value
@@ -55,7 +69,11 @@ class KaraokeCoordinator(
         val position = PlaybackClock.position(info.position, info.retrievedAtElapsedRealtimeMs, now(), info.isPlaying, info.playbackSpeed, info.duration)
         mutable.value = current.copy(positionMs = position, currentIndex = current.resolution.document.indexAt(position - current.resolution.offsetMs))
     }
-    fun close() { generation++; fetch?.cancel(); ticker?.cancel() }
+    fun close() {
+        generation++
+        fetch?.cancel()
+        ticker?.cancel()
+    }
 }
 
 object KaraokeRuntime {
@@ -83,15 +101,38 @@ object KaraokeRuntime {
     }
     fun choose(track: TrackIdentity, candidate: LyricCandidate) {
         scope.launch {
-            try { repository.choose(track, candidate) }
-            catch (e: CancellationException) { throw e }
-            catch (e: Exception) { coordinator.reportError("Could not save lyrics. Please retry.") }
+            try {
+                repository.choose(track, candidate)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                coordinator.reportError("Could not save lyrics. Please retry.")
+            }
         }
     }
     fun resetSelection() {
         val track = coordinator.state.value.track ?: return
-        scope.launch { try { LyricsRepository.deleteLyrics(contextForStorage!!, listOf(track.key)) } catch (e: CancellationException) { throw e } catch (e: Exception) { coordinator.reportError("Could not reset saved lyrics.") } }
+        scope.launch {
+            try {
+                LyricsRepository.deleteLyrics(contextForStorage!!, listOf(track.key))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                coordinator.reportError("Could not reset saved lyrics.")
+            }
+        }
     }
     private var contextForStorage: Context? = null
-    fun offset(deltaMs: Long) { val track = coordinator.state.value.track ?: return; scope.launch { try { repository.offset(track, deltaMs) } catch (e: CancellationException) { throw e } catch (e: Exception) { coordinator.reportError("Could not save timing adjustment.") } } }
+    fun offset(deltaMs: Long) {
+        val track = coordinator.state.value.track ?: return
+        scope.launch {
+            try {
+                repository.offset(track, deltaMs)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                coordinator.reportError("Could not save timing adjustment.")
+            }
+        }
+    }
 }

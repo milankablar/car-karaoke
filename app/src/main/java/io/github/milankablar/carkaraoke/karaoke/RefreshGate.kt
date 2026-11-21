@@ -10,5 +10,7 @@ internal class RefreshGate {
         dueAt = requestedAt
         return delay
     }
-    fun clear() { dueAt = Long.MAX_VALUE }
+    fun clear() {
+        dueAt = Long.MAX_VALUE
+    }
 }

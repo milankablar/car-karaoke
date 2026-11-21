@@ -4,13 +4,13 @@ import android.content.Context
 import android.util.Log
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticLogger
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticModule
+import java.net.URLEncoder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
-import java.net.URLEncoder
 
 object LRCLibProvider : LyricsProvider {
     private const val BASE_URL = "https://lrclib.net/api/get"
@@ -21,7 +21,7 @@ object LRCLibProvider : LyricsProvider {
             val startedMs = System.currentTimeMillis()
             val trackName = URLEncoder.encode(title, "UTF-8")
             val artistName = URLEncoder.encode(artist, "UTF-8")
-            
+
             val url = "$BASE_URL?track_name=$trackName&artist_name=$artistName"
 
             val request = Request.Builder()

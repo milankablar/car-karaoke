@@ -32,23 +32,46 @@ data class KaraokeLine(val timeMs: Long, val text: String, val words: List<Lyric
 data class LyricDocument(val lines: List<KaraokeLine>, val plainText: String = "") {
     val synced get() = lines.isNotEmpty()
     fun indexAt(positionMs: Long): Int {
-        var low = 0; var high = lines.size
-        while (low < high) { val mid = (low + high) / 2; if (lines[mid].timeMs <= positionMs) low = mid + 1 else high = mid }
+        var low = 0
+        var high = lines.size
+        while (low < high) {
+            val mid = (low + high) / 2
+            if (lines[mid].timeMs <= positionMs) low = mid + 1 else high = mid
+        }
         return low - 1
     }
 }
 
-data class LyricCandidate(val id: String, val provider: String, val title: String, val artist: String,
-    val album: String, val durationMs: Long, val content: String, val instrumental: Boolean = false,
-    val verifiedIdentity: Boolean = true)
+data class LyricCandidate(
+    val id: String,
+    val provider: String,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val durationMs: Long,
+    val content: String,
+    val instrumental: Boolean = false,
+    val verifiedIdentity: Boolean = true
+)
 
 enum class LyricsStatus { NO_MEDIA, LOADING, SYNCED, PLAIN, INSTRUMENTAL, NEEDS_SELECTION, NOT_FOUND, ERROR, DISABLED }
-data class LyricResolution(val status: LyricsStatus, val document: LyricDocument = LyricDocument(emptyList()),
-    val candidates: List<LyricCandidate> = emptyList(), val source: String = "", val message: String = "",
-    val offsetMs: Long = 0, val manual: Boolean = false)
-data class KaraokeState(val info: MediaInfo? = null, val track: TrackIdentity? = null,
-    val resolution: LyricResolution = LyricResolution(LyricsStatus.NO_MEDIA), val positionMs: Long = 0,
-    val currentIndex: Int = -1, val revision: Long = 0)
+data class LyricResolution(
+    val status: LyricsStatus,
+    val document: LyricDocument = LyricDocument(emptyList()),
+    val candidates: List<LyricCandidate> = emptyList(),
+    val source: String = "",
+    val message: String = "",
+    val offsetMs: Long = 0,
+    val manual: Boolean = false
+)
+data class KaraokeState(
+    val info: MediaInfo? = null,
+    val track: TrackIdentity? = null,
+    val resolution: LyricResolution = LyricResolution(LyricsStatus.NO_MEDIA),
+    val positionMs: Long = 0,
+    val currentIndex: Int = -1,
+    val revision: Long = 0
+)
 
 /** The same monotonic clock is used on both presentation surfaces. */
 object PlaybackClock {

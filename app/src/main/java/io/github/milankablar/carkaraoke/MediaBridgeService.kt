@@ -1,15 +1,15 @@
 package io.github.milankablar.carkaraoke
 
 import android.os.Bundle
-import android.util.Log
 import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.MediaDescriptionCompat
+import android.util.Log
 import androidx.media.MediaBrowserServiceCompat
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticLogger
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticModule
 
 class MediaBridgeService : MediaBrowserServiceCompat() {
-    
+
     private var lastSettingsSignature = ""
     private val settingsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         val signature = SettingsManager.playbackSettingsSignature(this)
@@ -24,8 +24,10 @@ class MediaBridgeService : MediaBrowserServiceCompat() {
     companion object {
         private const val ROOT_ID = "root"
         private var instance: MediaBridgeService? = null
-        
-        fun refreshLyrics() { instance?.notifyChildrenChanged("lyrics") }
+
+        fun refreshLyrics() {
+            instance?.notifyChildrenChanged("lyrics")
+        }
 
         fun refreshBrowserData() {
             instance?.let { service ->
@@ -48,14 +50,13 @@ class MediaBridgeService : MediaBrowserServiceCompat() {
         sessionToken = MediaBridgeSessionManager.getSessionToken()!!
 
         val mediaInfo = MediaInformationRetriever.refreshCurrentMediaInfo(this)
-        if (mediaInfo != null)
-        {
+        if (mediaInfo != null) {
             MediaBridgeSessionManager.updateFromMediaInfo(mediaInfo)
         }
 
         Log.d("MediaBridge", "MediaBrowserServiceCompat started")
     }
-    
+
     override fun onDestroy() {
         super.onDestroy()
         MediaBridgeSessionManager.relinquish("car")
@@ -84,29 +85,41 @@ class MediaBridgeService : MediaBrowserServiceCompat() {
             val state = io.github.milankablar.carkaraoke.karaoke.KaraokeRuntime.coordinator.state.value
             val rows = io.github.milankablar.carkaraoke.karaoke.CarLyricsPresenter.window(state, getSharedPreferences("presentation", 0).getLong("carOffset", 0))
             val items = rows.mapIndexed { index, (active, text) ->
-                MediaBrowserCompat.MediaItem(MediaDescriptionCompat.Builder()
-                    .setMediaId("lyric:${state.track?.key}:$index")
-                    .setTitle(if (active) "▶ $text" else text)
-                    .setSubtitle(state.info?.title).build(), MediaBrowserCompat.MediaItem.FLAG_PLAYABLE)
+                MediaBrowserCompat.MediaItem(
+                    MediaDescriptionCompat.Builder()
+                        .setMediaId("lyric:${state.track?.key}:$index")
+                        .setTitle(if (active) "▶ $text" else text)
+                        .setSubtitle(state.info?.title).build(),
+                    MediaBrowserCompat.MediaItem.FLAG_PLAYABLE
+                )
             }.toMutableList()
-            if (items.isEmpty()) items.add(MediaBrowserCompat.MediaItem(MediaDescriptionCompat.Builder()
-                .setMediaId("lyric-status").setTitle(state.resolution.status.name.lowercase().replace('_', ' '))
-                .setSubtitle("Open Car Karaoke on your phone for lyric corrections").build(), MediaBrowserCompat.MediaItem.FLAG_PLAYABLE))
+            if (items.isEmpty()) {
+                items.add(
+                    MediaBrowserCompat.MediaItem(
+                        MediaDescriptionCompat.Builder()
+                            .setMediaId("lyric-status").setTitle(state.resolution.status.name.lowercase().replace('_', ' '))
+                            .setSubtitle("Open Car Karaoke on your phone for lyric corrections").build(),
+                        MediaBrowserCompat.MediaItem.FLAG_PLAYABLE
+                    )
+                )
+            }
             result.sendResult(items)
             return
         }
         if (parentId == ROOT_ID) {
-            result.sendResult(mutableListOf(
-                MediaBrowserCompat.MediaItem(MediaDescriptionCompat.Builder().setMediaId("lyrics").setTitle("Live lyrics").setSubtitle("Follow the current song").build(), MediaBrowserCompat.MediaItem.FLAG_BROWSABLE),
-                MediaBrowserCompat.MediaItem(MediaDescriptionCompat.Builder().setMediaId("players").setTitle("Music apps").setSubtitle("Choose your player").build(), MediaBrowserCompat.MediaItem.FLAG_BROWSABLE)
-            ))
+            result.sendResult(
+                mutableListOf(
+                    MediaBrowserCompat.MediaItem(MediaDescriptionCompat.Builder().setMediaId("lyrics").setTitle("Live lyrics").setSubtitle("Follow the current song").build(), MediaBrowserCompat.MediaItem.FLAG_BROWSABLE),
+                    MediaBrowserCompat.MediaItem(MediaDescriptionCompat.Builder().setMediaId("players").setTitle("Music apps").setSubtitle("Choose your player").build(), MediaBrowserCompat.MediaItem.FLAG_BROWSABLE)
+                )
+            )
             return
         }
         if (parentId != "players") {
             result.sendResult(mutableListOf())
             return
         }
-        
+
         if (!hasNotificationAccess(context)) {
             MediaBridgeSessionManager.showBrowserError(
                 getString(R.string.notification_access_required_car)
@@ -119,7 +132,7 @@ class MediaBridgeService : MediaBrowserServiceCompat() {
 
         val items = controllers.mapNotNull { controller ->
             val mediaInfo = runCatching { MediaInformationRetriever.buildMediaInfoFromController(context, controller) }.getOrNull()
-            
+
             // Only show apps that have active media info
             mediaInfo?.let {
                 val description = MediaDescriptionCompat.Builder()
@@ -148,5 +161,4 @@ class MediaBridgeService : MediaBrowserServiceCompat() {
         )
         result.sendResult(items)
     }
-
 }

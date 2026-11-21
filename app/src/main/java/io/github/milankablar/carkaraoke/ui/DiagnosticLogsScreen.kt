@@ -31,9 +31,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,13 +51,12 @@ import io.github.milankablar.carkaraoke.diagnostics.DiagnosticEvent
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticLevel
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticLogger
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticModule
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import androidx.compose.runtime.LaunchedEffect
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun DiagnosticLogsScreen(onBack: () -> Unit) {
@@ -312,9 +311,7 @@ private fun DiagnosticEvent.matches(query: String): Boolean {
         throwable?.contains(needle, ignoreCase = true) == true
 }
 
-private fun <T> Set<T>.toggle(value: T): Set<T> {
-    return if (value in this) this - value else this + value
-}
+private fun <T> Set<T>.toggle(value: T): Set<T> = if (value in this) this - value else this + value
 
 @Composable
 private fun DiagnosticLevel.color() = when (this) {
@@ -324,8 +321,6 @@ private fun DiagnosticLevel.color() = when (this) {
     DiagnosticLevel.DEBUG -> MaterialTheme.colorScheme.secondary
 }
 
-private fun formatLocalTime(timestampMs: Long): String {
-    return DateTimeFormatter.ofPattern("MM-dd HH:mm:ss")
-        .withZone(ZoneId.systemDefault())
-        .format(Instant.ofEpochMilli(timestampMs))
-}
+private fun formatLocalTime(timestampMs: Long): String = DateTimeFormatter.ofPattern("MM-dd HH:mm:ss")
+    .withZone(ZoneId.systemDefault())
+    .format(Instant.ofEpochMilli(timestampMs))

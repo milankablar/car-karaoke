@@ -27,14 +27,21 @@ class LyricDisplayLifecycleTest {
         SettingsManager.setLyricsEnabled(context, true)
         mockkObject(LyricCache)
     }
-    @After fun teardown() { unmockkObject(LyricCache) }
+
+    @After fun teardown() {
+        unmockkObject(LyricCache)
+    }
 
     @Test fun `stopping cancels pending lookup without waiting`() = runTest {
         val entered = CompletableDeferred<Unit>()
         var cancelled = false
         coEvery { LyricCache.getOrFetchLyrics(any(), any(), any(), any()) } coAnswers {
             entered.complete(Unit)
-            try { awaitCancellation() } finally { cancelled = true }
+            try {
+                awaitCancellation()
+            } finally {
+                cancelled = true
+            }
         }
         val manager = LyricDisplayManager(context, backgroundScope)
         manager.start(session, info("Song"))

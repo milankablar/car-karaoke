@@ -9,7 +9,8 @@ object EnhancedLrcParser {
         val fileOffset = offset.find(content)?.groupValues?.get(1)?.toLongOrNull()?.coerceIn(-86_400_000, 86_400_000) ?: 0
         val lines = content.lineSequence().flatMap { raw ->
             val text = raw.trim().removePrefix("\uFEFF")
-            val timestamps = mutableListOf<Long>(); var end = 0
+            val timestamps = mutableListOf<Long>()
+            var end = 0
             stamp.findAll(text).takeWhile { it.range.first == end }.forEach { tag ->
                 end = tag.range.last + 1
                 time(tag)?.let { timestamps += it }

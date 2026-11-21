@@ -161,7 +161,6 @@ fun SettingsScreen(
             ) {
                 Text(stringResource(R.string.diagnostics_title))
             }
-
         }
     }
 }

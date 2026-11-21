@@ -35,15 +35,19 @@ class RecordingLyricsRepository(private val context: Context, private val provid
             if (selected != null) {
                 val saved = save(track, selected, false, revision)
                 if (saved) resolution(selected.content, selected.provider, selected.instrumental) else cached(track) ?: LyricResolution(LyricsStatus.NOT_FOUND)
-            } else if (stored != null) stored.copy(message = "Using saved lyrics")
-            else {
+            } else if (stored != null) {
+                stored.copy(message = "Using saved lyrics")
+            } else {
                 val legacy = LyricsRepository.loadLyricsText(context, LyricsRepository.keyFor(track.title, track.artist))
                 val choices = candidates + if (legacy.isNotBlank()) listOf(LyricCandidate("legacy", "Previous library", track.title, track.artist, track.album, 0, legacy, verifiedIdentity = false)) else emptyList()
                 if (choices.isEmpty()) misses[track.key] = System.currentTimeMillis() + 3600000
                 LyricResolution(if (choices.isEmpty()) LyricsStatus.NOT_FOUND else LyricsStatus.NEEDS_SELECTION, candidates = choices)
             }
-        } catch (e: CancellationException) { throw e }
-        catch (e: Exception) { stored?.copy(message = "Offline • saved lyrics") ?: LyricResolution(LyricsStatus.ERROR, message = "Lyrics service unavailable. Check your connection and retry.") }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            stored?.copy(message = "Offline • saved lyrics") ?: LyricResolution(LyricsStatus.ERROR, message = "Lyrics service unavailable. Check your connection and retry.")
+        }
     }
     suspend fun choose(track: TrackIdentity, candidate: LyricCandidate) {
         save(track, candidate, true, null)
@@ -73,6 +77,16 @@ class RecordingLyricsRepository(private val context: Context, private val provid
     }
     private fun resolution(content: String, source: String, instrumental: Boolean, offset: Long = 0, manual: Boolean = false): LyricResolution {
         val document = EnhancedLrcParser.parse(content)
-        return LyricResolution(when { instrumental -> LyricsStatus.INSTRUMENTAL; document.synced -> LyricsStatus.SYNCED; else -> LyricsStatus.PLAIN }, document, source = source, offsetMs = offset, manual = manual)
+        return LyricResolution(
+            when {
+                instrumental -> LyricsStatus.INSTRUMENTAL
+                document.synced -> LyricsStatus.SYNCED
+                else -> LyricsStatus.PLAIN
+            },
+            document,
+            source = source,
+            offsetMs = offset,
+            manual = manual
+        )
     }
 }

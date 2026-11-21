@@ -1,20 +1,20 @@
 package io.github.milankablar.carkaraoke
 
 import android.content.Context
-import android.media.MediaMetadata
-import android.media.session.PlaybackState
-import android.os.SystemClock
-import android.util.Log
-import io.github.milankablar.carkaraoke.models.MediaInfo
 import android.graphics.*
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.media.MediaMetadata
 import android.media.session.MediaController
-import androidx.core.graphics.withTranslation
-import androidx.core.graphics.scale
+import android.media.session.PlaybackState
+import android.os.SystemClock
+import android.util.Log
 import androidx.core.graphics.createBitmap
+import androidx.core.graphics.scale
+import androidx.core.graphics.withTranslation
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticLogger
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticModule
+import io.github.milankablar.carkaraoke.models.MediaInfo
 import kotlin.math.roundToLong
 
 object MediaInformationRetriever {
@@ -32,8 +32,7 @@ object MediaInformationRetriever {
 
             val appIcon = getAppIconBitmap(context, controller.packageName)
             var albumArt = getArtwork(metadata)
-            if (appIcon != null && albumArt != null && SettingsManager.getCombineAppIconAndAlbumArt(context))
-            {
+            if (appIcon != null && albumArt != null && SettingsManager.getCombineAppIconAndAlbumArt(context)) {
                 albumArt = composeAlbumArtWithAppIconFixed(albumArt, appIcon)
             }
 
@@ -111,15 +110,14 @@ object MediaInformationRetriever {
             albumArt = albumArt,
             playbackStateUpdateTimeMs = state.lastPositionUpdateTime,
             retrievedAtElapsedRealtimeMs = retrievedAtMs,
-                playbackSpeed = state.playbackSpeed.takeIf { it.isFinite() && it >= 0f } ?: 1f,
-                mediaId = metadata.getString(MediaMetadata.METADATA_KEY_MEDIA_ID),
-                sourceActions = state.actions
+            playbackSpeed = state.playbackSpeed.takeIf { it.isFinite() && it >= 0f } ?: 1f,
+            mediaId = metadata.getString(MediaMetadata.METADATA_KEY_MEDIA_ID),
+            sourceActions = state.actions
         )
     }
 
-    private fun getArtwork(metadata: MediaMetadata): Bitmap? =
-        metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
-            ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+    private fun getArtwork(metadata: MediaMetadata): Bitmap? = metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
+        ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
 
     internal fun getCurrentPositionMs(
         state: PlaybackState,
@@ -154,7 +152,7 @@ object MediaInformationRetriever {
     private fun composeAlbumArtWithAppIconFixed(
         albumArt: Bitmap,
         appIcon: Bitmap,
-        outputSize: Int = 512,      // album size 512x512
+        outputSize: Int = 512, // album size 512x512
         appIconRatio: Float = 0.25f // app icon size
     ): Bitmap {
         val scaledAlbumArt = albumArt.scale(outputSize, outputSize)
@@ -206,56 +204,54 @@ object MediaInformationRetriever {
         return finalLabel
     }
 
-    private fun resolveAppLabel(context: Context, packageName: String): String? {
-        return runCatching {
-            val pm = context.packageManager
-            val appInfo = pm.getApplicationInfo(packageName, 0)
-            val label = pm.getApplicationLabel(appInfo).toString().trim()
+    private fun resolveAppLabel(context: Context, packageName: String): String? = runCatching {
+        val pm = context.packageManager
+        val appInfo = pm.getApplicationInfo(packageName, 0)
+        val label = pm.getApplicationLabel(appInfo).toString().trim()
 
-            if (label.isNotBlank() && label != packageName) {
-                label
-            } else {
-                val installedLabel = pm.getInstalledPackages(0)
-                    .firstOrNull { it.packageName == packageName }
-                    ?.applicationInfo
-                    ?.loadLabel(pm)
-                    ?.toString()
-                    ?.trim()
-                    .orEmpty()
+        if (label.isNotBlank() && label != packageName) {
+            label
+        } else {
+            val installedLabel = pm.getInstalledPackages(0)
+                .firstOrNull { it.packageName == packageName }
+                ?.applicationInfo
+                ?.loadLabel(pm)
+                ?.toString()
+                ?.trim()
+                .orEmpty()
 
-                installedLabel.takeIf { it.isNotBlank() && it != packageName }
-            }
-        }.getOrNull()
-    }
-
-    private fun getAppIconBitmap(context: Context, packageName: String): Bitmap? {
-        return iconMap[packageName] ?: run {
-            val bitmap = try {
-                val drawable = context.packageManager.getApplicationIcon(packageName)
-                drawableToBitmap(drawable)
-            } catch (e: Exception) {
-                Log.w("MediaBridge", "⚠️ Failed to get app icon for $packageName: ${e.message}")
-                DiagnosticLogger.warn(
-                    context,
-                    DiagnosticModule.MEDIA,
-                    "Failed to load app icon",
-                    mapOf("package" to packageName),
-                    e
-                )
-                null
-            }
-            // Cache the result (even if null) to avoid repeated attempts
-            iconMap[packageName] = bitmap
-            bitmap
+            installedLabel.takeIf { it.isNotBlank() && it != packageName }
         }
+    }.getOrNull()
+
+    private fun getAppIconBitmap(context: Context, packageName: String): Bitmap? = iconMap[packageName] ?: run {
+        val bitmap = try {
+            val drawable = context.packageManager.getApplicationIcon(packageName)
+            drawableToBitmap(drawable)
+        } catch (e: Exception) {
+            Log.w("MediaBridge", "⚠️ Failed to get app icon for $packageName: ${e.message}")
+            DiagnosticLogger.warn(
+                context,
+                DiagnosticModule.MEDIA,
+                "Failed to load app icon",
+                mapOf("package" to packageName),
+                e
+            )
+            null
+        }
+        // Cache the result (even if null) to avoid repeated attempts
+        iconMap[packageName] = bitmap
+        bitmap
     }
 
     private fun drawableToBitmap(drawable: Drawable): Bitmap {
         if (drawable is BitmapDrawable) {
             drawable.bitmap?.let { return it }
         }
-        val bitmap = createBitmap(drawable.intrinsicWidth.takeIf { it > 0 } ?: 1,
-            drawable.intrinsicHeight.takeIf { it > 0 } ?: 1)
+        val bitmap = createBitmap(
+            drawable.intrinsicWidth.takeIf { it > 0 } ?: 1,
+            drawable.intrinsicHeight.takeIf { it > 0 } ?: 1
+        )
         val canvas = Canvas(bitmap)
         drawable.setBounds(0, 0, canvas.width, canvas.height)
         drawable.draw(canvas)

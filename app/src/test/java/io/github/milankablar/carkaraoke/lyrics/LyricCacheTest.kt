@@ -3,6 +3,8 @@ package io.github.milankablar.carkaraoke.lyrics
 import android.content.Context
 import android.content.ContextWrapper
 import io.mockk.*
+import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.runTest
 import org.junit.*
@@ -11,8 +13,6 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
-import java.io.File
-import java.io.IOException
 
 @RunWith(RobolectricTestRunner::class)
 class LyricCacheTest {
@@ -31,7 +31,9 @@ class LyricCacheTest {
         mockkObject(LyricsManager)
     }
 
-    @After fun teardown() { unmockkObject(LyricsManager) }
+    @After fun teardown() {
+        unmockkObject(LyricsManager)
+    }
 
     @Test fun legacyFileMigratesAndIdentityPreservesSpecialCharacters() = runTest {
         File(directory, "a_b_Artist.lrt").writeText("[00:00]hello")

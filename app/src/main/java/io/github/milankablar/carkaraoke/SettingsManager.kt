@@ -4,13 +4,13 @@ import android.content.Context
 import androidx.core.content.edit
 import io.github.milankablar.carkaraoke.data.LyricsCleanupField
 import io.github.milankablar.carkaraoke.data.LyricsCleanupRule
-import io.github.milankablar.carkaraoke.models.LanguageOption
-import io.github.milankablar.carkaraoke.models.BridgedApp
 import io.github.milankablar.carkaraoke.data.LyricsProviderConfig
 import io.github.milankablar.carkaraoke.data.LyricsProviderRegistry
+import io.github.milankablar.carkaraoke.models.BridgedApp
+import io.github.milankablar.carkaraoke.models.LanguageOption
+import java.util.UUID
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.UUID
 
 object SettingsManager {
     private const val PREFS_NAME = "media_bridge_settings"
@@ -99,8 +99,7 @@ object SettingsManager {
     }
 
     /** Rejects malformed imported settings before touching persistent data. */
-    fun validateBackupSettings(settings: JSONObject): JSONObject =
-        io.github.milankablar.carkaraoke.backup.BackupSettingsValidator.validate(settings)
+    fun validateBackupSettings(settings: JSONObject): JSONObject = io.github.milankablar.carkaraoke.backup.BackupSettingsValidator.validate(settings)
 
     fun addChangeListener(context: Context, listener: android.content.SharedPreferences.OnSharedPreferenceChangeListener) {
         getPrefs(context).registerOnSharedPreferenceChangeListener(listener)
@@ -122,67 +121,58 @@ object SettingsManager {
 
     private fun safeArray(text: String): JSONArray = runCatching { JSONArray(text) }.getOrDefault(JSONArray())
 
-    fun getCombineAppIconAndAlbumArt(context: Context): Boolean =
-        getPrefs(context).getBoolean(KEY_COMBINE_APP_ICON_AND_ALBUM_ART, true)
+    fun getCombineAppIconAndAlbumArt(context: Context): Boolean = getPrefs(context).getBoolean(KEY_COMBINE_APP_ICON_AND_ALBUM_ART, true)
 
     fun setCombineAppIconAndAlbumArt(context: Context, enabled: Boolean) {
-        getPrefs(context).edit() { putBoolean(KEY_COMBINE_APP_ICON_AND_ALBUM_ART, enabled) }
+        getPrefs(context).edit { putBoolean(KEY_COMBINE_APP_ICON_AND_ALBUM_ART, enabled) }
     }
 
-    fun getShowAlbumName(context: Context): Boolean =
-        getPrefs(context).getBoolean(KEY_SHOW_ALBUM_NAME, true)
+    fun getShowAlbumName(context: Context): Boolean = getPrefs(context).getBoolean(KEY_SHOW_ALBUM_NAME, true)
 
     fun setShowAlbumName(context: Context, enabled: Boolean) {
-        getPrefs(context).edit() { putBoolean(KEY_SHOW_ALBUM_NAME, enabled) }
+        getPrefs(context).edit { putBoolean(KEY_SHOW_ALBUM_NAME, enabled) }
     }
 
-    fun getShowNextLyricLine(context: Context): Boolean =
-        getPrefs(context).getBoolean(KEY_SHOW_NEXT_LYRIC_LINE, false)
+    fun getShowNextLyricLine(context: Context): Boolean = getPrefs(context).getBoolean(KEY_SHOW_NEXT_LYRIC_LINE, false)
 
     fun setShowNextLyricLine(context: Context, enabled: Boolean) {
-        getPrefs(context).edit() { putBoolean(KEY_SHOW_NEXT_LYRIC_LINE, enabled) }
+        getPrefs(context).edit { putBoolean(KEY_SHOW_NEXT_LYRIC_LINE, enabled) }
     }
 
-    fun getShowSourceApp(context: Context): Boolean =
-        getPrefs(context).getBoolean(KEY_SHOW_SOURCE_APP, true)
+    fun getShowSourceApp(context: Context): Boolean = getPrefs(context).getBoolean(KEY_SHOW_SOURCE_APP, true)
 
     fun setShowSourceApp(context: Context, enabled: Boolean) {
-        getPrefs(context).edit() { putBoolean(KEY_SHOW_SOURCE_APP, enabled) }
+        getPrefs(context).edit { putBoolean(KEY_SHOW_SOURCE_APP, enabled) }
     }
 
-    fun getLyricsTimingOffset(context: Context): Int =
-        getPrefs(context).getInt(KEY_LYRICS_TIMING_OFFSET, 0)
+    fun getLyricsTimingOffset(context: Context): Int = getPrefs(context).getInt(KEY_LYRICS_TIMING_OFFSET, 0)
 
     fun setLyricsTimingOffset(context: Context, offsetMs: Int) {
-        getPrefs(context).edit() { putInt(KEY_LYRICS_TIMING_OFFSET, offsetMs) }
+        getPrefs(context).edit { putInt(KEY_LYRICS_TIMING_OFFSET, offsetMs) }
     }
 
-    fun getLyricsEnabled(context: Context): Boolean =
-        getPrefs(context).getBoolean(KEY_LYRICS_ENABLED, true)
+    fun getLyricsEnabled(context: Context): Boolean = getPrefs(context).getBoolean(KEY_LYRICS_ENABLED, true)
 
     fun setLyricsEnabled(context: Context, enabled: Boolean) {
-        getPrefs(context).edit() { putBoolean(KEY_LYRICS_ENABLED, enabled) }
+        getPrefs(context).edit { putBoolean(KEY_LYRICS_ENABLED, enabled) }
     }
 
-    fun getApiKey(context: Context): String =
-        getPrefs(context).getString(KEY_API_KEY, "") ?: ""
+    fun getApiKey(context: Context): String = getPrefs(context).getString(KEY_API_KEY, "") ?: ""
 
     fun setApiKey(context: Context, key: String) {
-        getPrefs(context).edit() { putString(KEY_API_KEY, key) }
+        getPrefs(context).edit { putString(KEY_API_KEY, key) }
     }
 
-    fun getLrcApiBaseUri(context: Context): String =
-        getPrefs(context).getString(KEY_LRC_API_URI, "") ?: ""
+    fun getLrcApiBaseUri(context: Context): String = getPrefs(context).getString(KEY_LRC_API_URI, "") ?: ""
 
     fun setLrcApiBaseUri(context: Context, uri: String) {
-        getPrefs(context).edit() { putString(KEY_LRC_API_URI, uri) }
+        getPrefs(context).edit { putString(KEY_LRC_API_URI, uri) }
     }
 
-    fun getLrcApiAuthToken(context: Context): String =
-        getPrefs(context).getString(KEY_LRC_API_AUTH_TOKEN, "") ?: ""
+    fun getLrcApiAuthToken(context: Context): String = getPrefs(context).getString(KEY_LRC_API_AUTH_TOKEN, "") ?: ""
 
     fun setLrcApiAuthToken(context: Context, token: String) {
-        getPrefs(context).edit() { putString(KEY_LRC_API_AUTH_TOKEN, token) }
+        getPrefs(context).edit { putString(KEY_LRC_API_AUTH_TOKEN, token) }
     }
 
     fun getSimplifyEnabled(context: Context): Boolean {
@@ -198,19 +188,16 @@ object SettingsManager {
     }
 
     fun setSimplifyEnabled(context: Context, enabled: Boolean) {
-        getPrefs(context).edit() { putBoolean(KEY_SIMPLIFY, enabled) }
+        getPrefs(context).edit { putBoolean(KEY_SIMPLIFY, enabled) }
     }
 
-    fun getIgnoreNativeAutoApps(context: Context): Boolean =
-        getPrefs(context).getBoolean(KEY_IGNORE_NATIVE_AUTO_APPS, false)
+    fun getIgnoreNativeAutoApps(context: Context): Boolean = getPrefs(context).getBoolean(KEY_IGNORE_NATIVE_AUTO_APPS, false)
 
     fun setIgnoreNativeAutoApps(context: Context, enabled: Boolean) {
-        getPrefs(context).edit() { putBoolean(KEY_IGNORE_NATIVE_AUTO_APPS, enabled) }
+        getPrefs(context).edit { putBoolean(KEY_IGNORE_NATIVE_AUTO_APPS, enabled) }
     }
 
-
-    fun getLanguagePreference(context: Context): String =
-        getPrefs(context).getString(KEY_LANGUAGE, "") ?: ""
+    fun getLanguagePreference(context: Context): String = getPrefs(context).getString(KEY_LANGUAGE, "") ?: ""
 
     fun setLanguagePreference(context: Context, language: LanguageOption) {
         getPrefs(context).edit(commit = true) {
@@ -226,7 +213,7 @@ object SettingsManager {
         val jsonString = getPrefs(context).getString(KEY_BRIDGED_APPS, "[]") ?: "[]"
         val jsonArray = safeArray(jsonString)
         val apps = mutableListOf<BridgedApp>()
-        
+
         for (i in 0 until jsonArray.length()) {
             val jsonObject = jsonArray.optJSONObject(i) ?: continue
             if (runCatching { io.github.milankablar.carkaraoke.backup.BackupSettingsValidator.validateEntry(KEY_BRIDGED_APPS, jsonObject) }.isFailure) continue
@@ -234,14 +221,14 @@ object SettingsManager {
             if (packageName == context.packageName) continue
 
             val storedAppName = jsonObject.getString("appName")
-            
+
             // If stored app name is just the package name, try to get proper app name again
             val refreshedAppName = if (storedAppName == packageName) {
                 MediaInformationRetriever.getAppLabel(context, packageName)
             } else {
                 storedAppName
             }
-            
+
             apps.add(
                 BridgedApp(
                     packageName = packageName,
@@ -282,7 +269,7 @@ object SettingsManager {
         val apps = getBridgedApps(context).toMutableList()
         val existingIndex = apps.indexOfFirst { it.packageName == packageName }
         val existingAppName = apps.getOrNull(existingIndex)?.appName
-        
+
         val finalAppName = when {
             appName.isNotBlank() && appName != packageName -> {
                 // We already have a good app name, use it and cache it.
@@ -300,7 +287,7 @@ object SettingsManager {
         if (finalAppName.isNotBlank() && finalAppName != packageName) {
             MediaInformationRetriever.labelMap[packageName] = finalAppName
         }
-        
+
         if (existingIndex >= 0) {
             // Update existing app
             val existing = apps[existingIndex]
@@ -322,23 +309,21 @@ object SettingsManager {
                 )
             )
         }
-        
+
         saveBridgedApps(context, apps)
     }
 
     fun setAppLyricsEnabled(context: Context, packageName: String, enabled: Boolean) {
         val apps = getBridgedApps(context).toMutableList()
         val existingIndex = apps.indexOfFirst { it.packageName == packageName }
-        
+
         if (existingIndex >= 0) {
             apps[existingIndex] = apps[existingIndex].copy(lyricsEnabled = enabled)
             saveBridgedApps(context, apps)
         }
     }
 
-    fun isAppLyricsEnabled(context: Context, packageName: String): Boolean {
-        return getBridgedApps(context).find { it.packageName == packageName }?.lyricsEnabled ?: true
-    }
+    fun isAppLyricsEnabled(context: Context, packageName: String): Boolean = getBridgedApps(context).find { it.packageName == packageName }?.lyricsEnabled ?: true
 
     fun setAppHeadUnitControlEnabled(context: Context, packageName: String, enabled: Boolean) {
         val apps = getBridgedApps(context).toMutableList()
@@ -350,9 +335,7 @@ object SettingsManager {
         }
     }
 
-    fun isAppHeadUnitControlEnabled(context: Context, packageName: String): Boolean {
-        return getBridgedApps(context).find { it.packageName == packageName }?.headUnitControlEnabled ?: true
-    }
+    fun isAppHeadUnitControlEnabled(context: Context, packageName: String): Boolean = getBridgedApps(context).find { it.packageName == packageName }?.headUnitControlEnabled ?: true
 
     fun setAppSwapRewindFastForward(context: Context, packageName: String, enabled: Boolean) {
         val apps = getBridgedApps(context).toMutableList()
@@ -364,9 +347,7 @@ object SettingsManager {
         }
     }
 
-    fun isAppSwapRewindFastForward(context: Context, packageName: String): Boolean {
-        return getBridgedApps(context).find { it.packageName == packageName }?.swapRewindFastForward ?: false
-    }
+    fun isAppSwapRewindFastForward(context: Context, packageName: String): Boolean = getBridgedApps(context).find { it.packageName == packageName }?.swapRewindFastForward ?: false
 
     private fun saveBridgedApps(context: Context, apps: List<BridgedApp>) {
         val jsonArray = JSONArray()
@@ -382,7 +363,7 @@ object SettingsManager {
             }
             jsonArray.put(jsonObject)
         }
-        
+
         getPrefs(context).edit {
             putString(KEY_BRIDGED_APPS, jsonArray.toString())
         }
@@ -396,7 +377,7 @@ object SettingsManager {
         val savedProviders = mutableMapOf<String, LyricsProviderConfig>()
         val savedProviderOrder = mutableMapOf<String, Int>()
         val registryOrder = allProviders.mapIndexed { index, provider -> provider.id to index }.toMap()
-        
+
         // Parse saved settings
         for (i in 0 until jsonArray.length()) {
             val jsonObject = jsonArray.optJSONObject(i) ?: continue
@@ -404,7 +385,7 @@ object SettingsManager {
             val id = jsonObject.getString("id")
             val baseProvider = LyricsProviderRegistry.getProviderById(id)
             savedProviderOrder[id] = i
-            
+
             if (baseProvider != null) {
                 savedProviders[id] = baseProvider.copy(
                     isEnabled = jsonObject.optBoolean("isEnabled", baseProvider.isEnabled),
@@ -412,7 +393,7 @@ object SettingsManager {
                 )
             }
         }
-        
+
         // Return all providers with saved settings applied, or defaults if not saved
         return allProviders.map { provider ->
             savedProviders[provider.id] ?: provider
@@ -433,7 +414,7 @@ object SettingsManager {
             }
             jsonArray.put(jsonObject)
         }
-        
+
         getPrefs(context).edit {
             putString(KEY_LYRICS_PROVIDERS, jsonArray.toString())
         }
@@ -471,16 +452,12 @@ object SettingsManager {
         updateProviderPriority(context, providerId, targetIndex + 1)
     }
 
-    fun getEnabledProvidersInOrder(context: Context): List<LyricsProviderConfig> {
-        return getLyricsProviders(context)
-            .filter { it.isEnabled }
-            .sortedBy { it.priority }
-    }
+    fun getEnabledProvidersInOrder(context: Context): List<LyricsProviderConfig> = getLyricsProviders(context)
+        .filter { it.isEnabled }
+        .sortedBy { it.priority }
 
-    private fun List<LyricsProviderConfig>.normalizedProviderOrder(): List<LyricsProviderConfig> {
-        return mapIndexed { index, provider ->
-            provider.copy(priority = index + 1)
-        }
+    private fun List<LyricsProviderConfig>.normalizedProviderOrder(): List<LyricsProviderConfig> = mapIndexed { index, provider ->
+        provider.copy(priority = index + 1)
     }
 
     fun getLyricsCleanupRules(context: Context): List<LyricsCleanupRule> {
@@ -531,17 +508,15 @@ object SettingsManager {
         }
     }
 
-    private fun defaultLyricsCleanupRules(): List<LyricsCleanupRule> {
-        return listOf(
-            LyricsCleanupRule(
-                id = "default_lossless_artist",
-                name = "Lossless",
-                field = LyricsCleanupField.ARTIST,
-                pattern = """(?i)\s*[•·-]?\s*Lossless\s*$""",
-                isEnabled = true
-            )
+    private fun defaultLyricsCleanupRules(): List<LyricsCleanupRule> = listOf(
+        LyricsCleanupRule(
+            id = "default_lossless_artist",
+            name = "Lossless",
+            field = LyricsCleanupField.ARTIST,
+            pattern = """(?i)\s*[•·-]?\s*Lossless\s*$""",
+            isEnabled = true
         )
-    }
+    )
 
     private fun android.content.SharedPreferences.getJSONArrayString(key: String): JSONArray {
         val value = getString(key, "[]") ?: "[]"
@@ -564,14 +539,11 @@ object SettingsManager {
         return jsonArray
     }
 
-    private fun JSONObject.optBooleanOrNull(key: String): Boolean? =
-        if (has(key) && !isNull(key)) optBoolean(key) else null
+    private fun JSONObject.optBooleanOrNull(key: String): Boolean? = if (has(key) && !isNull(key)) optBoolean(key) else null
 
-    private fun JSONObject.optIntOrNull(key: String): Int? =
-        if (has(key) && !isNull(key)) optInt(key) else null
+    private fun JSONObject.optIntOrNull(key: String): Int? = if (has(key) && !isNull(key)) optInt(key) else null
 
-    private fun JSONObject.optStringOrNull(key: String): String? =
-        if (has(key) && !isNull(key)) optString(key, "") else null
+    private fun JSONObject.optStringOrNull(key: String): String? = if (has(key) && !isNull(key)) optString(key, "") else null
 
     private fun JSONObject.optJSONArrayStringOrNull(key: String): String? {
         if (!has(key) || isNull(key)) return null

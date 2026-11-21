@@ -2,8 +2,8 @@ package io.github.milankablar.carkaraoke.data
 
 import android.content.Context
 import io.github.milankablar.carkaraoke.R
-import io.github.milankablar.carkaraoke.lyrics.providers.LrcApiProvider
 import io.github.milankablar.carkaraoke.lyrics.providers.LRCLibProvider
+import io.github.milankablar.carkaraoke.lyrics.providers.LrcApiProvider
 import io.github.milankablar.carkaraoke.lyrics.providers.LyricsProvider
 import io.github.milankablar.carkaraoke.lyrics.providers.SpotifyProvider
 
@@ -45,8 +45,6 @@ object LyricsProviderRegistry {
             provider = LrcApiProvider
         )
     )
-    
-    fun getProviderById(id: String): LyricsProviderConfig? {
-        return getAllProviders().find { it.id == id }
-    }
+
+    fun getProviderById(id: String): LyricsProviderConfig? = getAllProviders().find { it.id == id }
 }

@@ -7,14 +7,14 @@ import androidx.core.content.pm.PackageInfoCompat
 import io.github.milankablar.carkaraoke.MediaBridgeSessionManager
 import io.github.milankablar.carkaraoke.SettingsManager
 import io.github.milankablar.carkaraoke.hasNotificationAccess
-import org.json.JSONObject
 import java.io.File
-import java.util.concurrent.Executors
-import java.util.concurrent.Semaphore
-import java.util.concurrent.TimeUnit
 import java.net.URI
 import java.time.Instant
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.Executors
+import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
+import org.json.JSONObject
 
 object DiagnosticLogger {
     private const val LOGCAT_TAG = "AAMediaMateDiag"
@@ -167,13 +167,9 @@ object DiagnosticLogger {
         info(context, DiagnosticModule.SYSTEM, "Detailed diagnostics disabled")
     }
 
-    fun isDebugEnabled(context: Context): Boolean {
-        return getDebugUntilMs(context) > System.currentTimeMillis()
-    }
+    fun isDebugEnabled(context: Context): Boolean = getDebugUntilMs(context) > System.currentTimeMillis()
 
-    fun getDebugUntilMs(context: Context): Long {
-        return getPrefs(context.applicationContext ?: context).getLong(KEY_DEBUG_UNTIL_MS, 0L)
-    }
+    fun getDebugUntilMs(context: Context): Long = getPrefs(context.applicationContext ?: context).getLong(KEY_DEBUG_UNTIL_MS, 0L)
 
     fun buildIssueReport(
         context: Context,
@@ -235,7 +231,11 @@ object DiagnosticLogger {
     private fun persist(context: Context, event: DiagnosticEvent) {
         if (!pendingWrites.tryAcquire()) return
         writer.execute {
-            try { persistOnWorker(context, event) } finally { pendingWrites.release() }
+            try {
+                persistOnWorker(context, event)
+            } finally {
+                pendingWrites.release()
+            }
         }
     }
 
@@ -279,8 +279,7 @@ object DiagnosticLogger {
         }.getOrNull()
     }
 
-    private fun getPrefs(context: Context) =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private fun getPrefs(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     private fun buildEnvironmentSummary(context: Context): List<Pair<String, String>> {
         val providers = runCatching {
@@ -317,24 +316,20 @@ object DiagnosticLogger {
         )
     }
 
-    private fun getAppVersion(context: Context): String {
-        return runCatching {
-            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            "${packageInfo.versionName} (${PackageInfoCompat.getLongVersionCode(packageInfo)})"
-        }.getOrDefault("unknown")
-    }
+    private fun getAppVersion(context: Context): String = runCatching {
+        val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+        "${packageInfo.versionName} (${PackageInfoCompat.getLongVersionCode(packageInfo)})"
+    }.getOrDefault("unknown")
 
-    private fun sanitizeDetails(details: Map<String, Any?>): Map<String, String> {
-        return details
-            .filterKeys { it.isNotBlank() }
-            .mapValues { (key, value) ->
-                when {
-                    sensitiveKeyRegex.containsMatchIn(key) -> "[redacted]"
-                    key.equals("url", ignoreCase = true) || key.endsWith("Url", ignoreCase = true) -> sanitizeUrl(value.orEmptyString())
-                    else -> sanitizeText(value.orEmptyString())
-                }
+    private fun sanitizeDetails(details: Map<String, Any?>): Map<String, String> = details
+        .filterKeys { it.isNotBlank() }
+        .mapValues { (key, value) ->
+            when {
+                sensitiveKeyRegex.containsMatchIn(key) -> "[redacted]"
+                key.equals("url", ignoreCase = true) || key.endsWith("Url", ignoreCase = true) -> sanitizeUrl(value.orEmptyString())
+                else -> sanitizeText(value.orEmptyString())
             }
-    }
+        }
 
     private fun sanitizeText(value: String): String {
         val redacted = authorizationValueRegex.replace(value, "$1 [redacted]")
@@ -355,13 +350,11 @@ object DiagnosticLogger {
         ).joinToString(" | ")
     }
 
-    private fun DiagnosticLevel.toAndroidPriority(): Int {
-        return when (this) {
-            DiagnosticLevel.DEBUG -> Log.DEBUG
-            DiagnosticLevel.INFO -> Log.INFO
-            DiagnosticLevel.WARN -> Log.WARN
-            DiagnosticLevel.ERROR -> Log.ERROR
-        }
+    private fun DiagnosticLevel.toAndroidPriority(): Int = when (this) {
+        DiagnosticLevel.DEBUG -> Log.DEBUG
+        DiagnosticLevel.INFO -> Log.INFO
+        DiagnosticLevel.WARN -> Log.WARN
+        DiagnosticLevel.ERROR -> Log.ERROR
     }
 
     private fun writeLogcat(level: DiagnosticLevel, message: String) {
@@ -398,38 +391,33 @@ object DiagnosticLogger {
         }
     }
 
-    private fun DiagnosticEvent.toJson(): JSONObject {
-        return JSONObject().apply {
-            put("timestampMs", timestampMs)
-            put("level", level.name)
-            put("module", module.name)
-            put("message", message)
-            put("details", JSONObject(details))
-            throwable?.let { put("throwable", it) }
+    private fun DiagnosticEvent.toJson(): JSONObject = JSONObject().apply {
+        put("timestampMs", timestampMs)
+        put("level", level.name)
+        put("module", module.name)
+        put("message", message)
+        put("details", JSONObject(details))
+        throwable?.let { put("throwable", it) }
+    }
+
+    private fun formatTimestamp(timestampMs: Long): String = DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(timestampMs))
+
+    private fun eventFromJson(line: String): DiagnosticEvent? = runCatching {
+        val json = JSONObject(line)
+        val detailsJson = json.optJSONObject("details") ?: JSONObject()
+        val details = mutableMapOf<String, String>()
+        val keys = detailsJson.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            details[key] = detailsJson.optString(key)
         }
-    }
-
-    private fun formatTimestamp(timestampMs: Long): String =
-        DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(timestampMs))
-
-    private fun eventFromJson(line: String): DiagnosticEvent? {
-        return runCatching {
-            val json = JSONObject(line)
-            val detailsJson = json.optJSONObject("details") ?: JSONObject()
-            val details = mutableMapOf<String, String>()
-            val keys = detailsJson.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                details[key] = detailsJson.optString(key)
-            }
-            DiagnosticEvent(
-                timestampMs = json.getLong("timestampMs"),
-                level = DiagnosticLevel.valueOf(json.getString("level")),
-                module = DiagnosticModule.valueOf(json.getString("module")),
-                message = json.getString("message"),
-                details = details,
-                throwable = json.optString("throwable").takeIf { it.isNotBlank() }
-            )
-        }.getOrNull()
-    }
+        DiagnosticEvent(
+            timestampMs = json.getLong("timestampMs"),
+            level = DiagnosticLevel.valueOf(json.getString("level")),
+            module = DiagnosticModule.valueOf(json.getString("module")),
+            message = json.getString("message"),
+            details = details,
+            throwable = json.optString("throwable").takeIf { it.isNotBlank() }
+        )
+    }.getOrNull()
 }

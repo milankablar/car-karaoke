@@ -7,14 +7,7 @@ import android.os.Build
 import io.github.milankablar.carkaraoke.SettingsManager
 import io.github.milankablar.carkaraoke.lyrics.LyricCache
 import io.github.milankablar.carkaraoke.lyrics.LyricsRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.sync.withLock
 import io.github.milankablar.carkaraoke.lyrics.LyricsStorage
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
@@ -26,6 +19,13 @@ import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 data class BackupExportResult(
     val lyricsFileCount: Int,
@@ -164,8 +164,13 @@ object BackupManager {
                                     val metadata = JSONObject(bytes.toString(Charsets.UTF_8))
                                     if (name.startsWith("v3_")) {
                                         val track = io.github.milankablar.carkaraoke.karaoke.TrackIdentity(
-                                            metadata.getString("source"), if (metadata.isNull("mediaId")) null else metadata.optString("mediaId"),
-                                            metadata.getString("title"), metadata.getString("artist"), metadata.getString("album"), metadata.getLong("durationMs"))
+                                            metadata.getString("source"),
+                                            if (metadata.isNull("mediaId")) null else metadata.optString("mediaId"),
+                                            metadata.getString("title"),
+                                            metadata.getString("artist"),
+                                            metadata.getString("album"),
+                                            metadata.getLong("durationMs")
+                                        )
                                         require(name == "${track.key}.json") { "Invalid recording identity" }
                                         require(metadata.optLong("offsetMs") in -60000L..60000L) { "Invalid lyric offset" }
                                     }
@@ -197,8 +202,10 @@ object BackupManager {
             withContext(NonCancellable) {
                 LyricsStorage.mutex.withLock {
                     BackupTransaction.commit(
-                        context, LyricCache.getLyricsDir(context),
-                        if (restoreLyrics) stagedFiles else emptyList(), if (restoreSettings) settings else null
+                        context,
+                        LyricCache.getLyricsDir(context),
+                        if (restoreLyrics) stagedFiles else emptyList(),
+                        if (restoreSettings) settings else null
                     )
                 }
                 LyricsRepository.notifyLyricsUpdated(LyricsRepository.ALL_LYRICS)

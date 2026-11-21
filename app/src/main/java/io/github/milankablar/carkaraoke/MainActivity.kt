@@ -17,8 +17,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent { CarKaraokeApp() }
     }
-    override fun onStart() { super.onStart(); MediaBridgeSessionManager.acquire(this, "phone") }
-    override fun onStop() { MediaBridgeSessionManager.relinquish("phone"); super.onStop() }
+    override fun onStart() {
+        super.onStart()
+        MediaBridgeSessionManager.acquire(this, "phone")
+    }
+    override fun onStop() {
+        MediaBridgeSessionManager.relinquish("phone")
+        super.onStop()
+    }
 }
 fun hasNotificationAccess(context: Context): Boolean {
     val component = ComponentName(context, MediaNotificationListener::class.java)
