@@ -36,8 +36,13 @@ object SettingsManager {
     private const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
     private const val KEY_CAR_LYRICS_OFFSET_MS = "car_lyrics_offset_ms"
     private const val KEY_CAR_LEGACY_TITLE = "car_legacy_title"
+    private const val KEY_CAR_NOW_PLAYING_MODE = "car_now_playing_mode"
+    private const val KEY_CAR_SHOW_ARTWORK = "car_show_artwork"
+    private const val KEY_CAR_CUSTOM_ACTIONS_MODE = "car_custom_actions_mode"
 
     val APPEARANCE_THEMES = setOf("System", "Light", "Dark", "Black")
+    val CAR_NOW_PLAYING_MODES = setOf("lyric_first", "lyric_and_song", "song_and_lyric")
+    val CAR_CUSTOM_ACTION_MODES = setOf("seek", "timing")
     private val NON_PLAYBACK_KEYS = setOf(
         KEY_LANGUAGE,
         KEY_APPEARANCE_THEME,
@@ -109,6 +114,9 @@ object SettingsManager {
             put(KEY_KEEP_SCREEN_ON, getKeepScreenOn(context))
             put(KEY_CAR_LYRICS_OFFSET_MS, getCarLyricsOffsetMs(context))
             put(KEY_CAR_LEGACY_TITLE, getCarLegacyTitle(context))
+            put(KEY_CAR_NOW_PLAYING_MODE, getCarNowPlayingMode(context))
+            put(KEY_CAR_SHOW_ARTWORK, getCarShowArtwork(context))
+            put(KEY_CAR_CUSTOM_ACTIONS_MODE, getCarCustomActionsMode(context))
 
             if (includeSecrets) {
                 put(KEY_API_KEY, getApiKey(context))
@@ -142,6 +150,9 @@ object SettingsManager {
             settings.optBooleanOrNull(KEY_KEEP_SCREEN_ON)?.let { putBoolean(KEY_KEEP_SCREEN_ON, it) }
             settings.optLongOrNull(KEY_CAR_LYRICS_OFFSET_MS)?.let { putLong(KEY_CAR_LYRICS_OFFSET_MS, it) }
             settings.optBooleanOrNull(KEY_CAR_LEGACY_TITLE)?.let { putBoolean(KEY_CAR_LEGACY_TITLE, it) }
+            settings.optStringOrNull(KEY_CAR_NOW_PLAYING_MODE)?.let { putString(KEY_CAR_NOW_PLAYING_MODE, it) }
+            settings.optBooleanOrNull(KEY_CAR_SHOW_ARTWORK)?.let { putBoolean(KEY_CAR_SHOW_ARTWORK, it) }
+            settings.optStringOrNull(KEY_CAR_CUSTOM_ACTIONS_MODE)?.let { putString(KEY_CAR_CUSTOM_ACTIONS_MODE, it) }
             settings.optStringOrNull(KEY_API_KEY)?.let { putString(KEY_API_KEY, it) }
             settings.optStringOrNull(KEY_LRC_API_AUTH_TOKEN)?.let { putString(KEY_LRC_API_AUTH_TOKEN, it) }
         }
@@ -225,6 +236,34 @@ object SettingsManager {
 
     fun setCarLegacyTitle(context: Context, enabled: Boolean) {
         getPrefs(context).edit { putBoolean(KEY_CAR_LEGACY_TITLE, enabled) }
+    }
+
+    fun getCarNowPlayingMode(context: Context): String {
+        val prefs = getPrefs(context)
+        val stored = prefs.getString(KEY_CAR_NOW_PLAYING_MODE, null)
+        if (stored in CAR_NOW_PLAYING_MODES) return stored!!
+        return "lyric_first"
+    }
+
+    fun setCarNowPlayingMode(context: Context, mode: String) {
+        val normalized = if (mode in CAR_NOW_PLAYING_MODES) mode else "lyric_first"
+        getPrefs(context).edit { putString(KEY_CAR_NOW_PLAYING_MODE, normalized) }
+    }
+
+    fun getCarShowArtwork(context: Context): Boolean = getPrefs(context).getBoolean(KEY_CAR_SHOW_ARTWORK, false)
+
+    fun setCarShowArtwork(context: Context, enabled: Boolean) {
+        getPrefs(context).edit { putBoolean(KEY_CAR_SHOW_ARTWORK, enabled) }
+    }
+
+    fun getCarCustomActionsMode(context: Context): String {
+        val stored = getPrefs(context).getString(KEY_CAR_CUSTOM_ACTIONS_MODE, "seek")
+        return if (stored in CAR_CUSTOM_ACTION_MODES) stored!! else "seek"
+    }
+
+    fun setCarCustomActionsMode(context: Context, mode: String) {
+        val normalized = if (mode in CAR_CUSTOM_ACTION_MODES) mode else "seek"
+        getPrefs(context).edit { putString(KEY_CAR_CUSTOM_ACTIONS_MODE, normalized) }
     }
 
     private fun safeArray(text: String): JSONArray = runCatching { JSONArray(text) }.getOrDefault(JSONArray())

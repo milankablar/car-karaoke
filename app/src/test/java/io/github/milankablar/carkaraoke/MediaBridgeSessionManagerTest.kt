@@ -112,6 +112,14 @@ class MediaBridgeSessionManagerTest {
         assertEquals(16_000L, MediaBridgeSessionManager.calculateEndOfMediaRefreshDelay(90_000, 120_000, 2f))
     }
 
+    @Test
+    fun `bridge package filter blocks dev release and upstream self loops`() {
+        assertTrue(MediaControllerManager.isSelfOrBridgePackage("io.github.milankablar.carkaraoke", "io.github.milankablar.carkaraoke.dev"))
+        assertTrue(MediaControllerManager.isSelfOrBridgePackage("io.github.milankablar.carkaraoke.dev", "io.github.milankablar.carkaraoke"))
+        assertTrue(MediaControllerManager.isSelfOrBridgePackage("com.gululu.aamediamate", "io.github.milankablar.carkaraoke.dev"))
+        assertFalse(MediaControllerManager.isSelfOrBridgePackage("com.spotify.music", "io.github.milankablar.carkaraoke.dev"))
+    }
+
     private fun mediaInfo(
         title: String,
         position: Long,

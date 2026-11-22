@@ -128,6 +128,14 @@ class MediaBridgeMediaCallback internal constructor(
 
         if (mediaId == null) return
 
+        if (mediaId.startsWith("lyric:")) {
+            val targetMs = mediaId.removePrefix("lyric:").toLongOrNull()
+            if (targetMs != null) {
+                onSeekTo(targetMs)
+            }
+            return
+        }
+
         val controller = MediaControllerManager.getAllControllers(context)
             .firstOrNull { it.packageName == mediaId }
 
@@ -160,6 +168,16 @@ class MediaBridgeMediaCallback internal constructor(
             MediaStateUpdater.ACTION_SKIP_PREVIOUS -> {
                 MediaControllerManager.getActiveController(context)?.transportControls?.skipToPrevious()
                 sync()
+            }
+            MediaStateUpdater.ACTION_CAR_OFFSET_EARLIER -> {
+                val updated = (SettingsManager.getCarLyricsOffsetMs(context) - 250L).coerceAtLeast(-5000L)
+                SettingsManager.setCarLyricsOffsetMs(context, updated)
+                MediaBridgeSessionManager.refreshCurrentSession(true)
+            }
+            MediaStateUpdater.ACTION_CAR_OFFSET_LATER -> {
+                val updated = (SettingsManager.getCarLyricsOffsetMs(context) + 250L).coerceAtMost(5000L)
+                SettingsManager.setCarLyricsOffsetMs(context, updated)
+                MediaBridgeSessionManager.refreshCurrentSession(true)
             }
             else -> {
                 Log.w("MediaBridge", "Unknown custom action: $action")

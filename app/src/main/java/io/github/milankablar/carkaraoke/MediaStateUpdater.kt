@@ -38,7 +38,12 @@ class MediaStateUpdater(private val context: Context) {
             metadataBuilder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "From ${info.appName}")
         }
 
-        info.albumArt?.let {
+        val art = if (SettingsManager.getCarShowArtwork(context)) {
+            info.albumArt
+        } else {
+            CarTrackCardRenderer.render(info.title, info.artist, info.albumArt)
+        }
+        art?.let {
             metadataBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_ART, it)
             metadataBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, it)
         }
@@ -59,7 +64,10 @@ class MediaStateUpdater(private val context: Context) {
         val canSeek = info.sourceActions?.let { it and PlaybackStateCompat.ACTION_SEEK_TO != 0L } ?: true
         val stateBuilder = PlaybackStateCompat.Builder()
             .setActions(actions)
-        if (canSeek) {
+        if (SettingsManager.getCarCustomActionsMode(context) == "timing") {
+            stateBuilder.addCustomAction(createTimingEarlierAction())
+            stateBuilder.addCustomAction(createTimingLaterAction())
+        } else if (canSeek) {
             stateBuilder.addCustomAction(createRewindAction())
             stateBuilder.addCustomAction(createFastForwardAction())
         }
@@ -124,11 +132,25 @@ class MediaStateUpdater(private val context: Context) {
         R.drawable.ic_skip_previous
     ).build()
 
+    private fun createTimingEarlierAction(): PlaybackStateCompat.CustomAction = PlaybackStateCompat.CustomAction.Builder(
+        ACTION_CAR_OFFSET_EARLIER,
+        "Lyrics earlier",
+        R.drawable.ic_timing_earlier
+    ).build()
+
+    private fun createTimingLaterAction(): PlaybackStateCompat.CustomAction = PlaybackStateCompat.CustomAction.Builder(
+        ACTION_CAR_OFFSET_LATER,
+        "Lyrics later",
+        R.drawable.ic_timing_later
+    ).build()
+
     companion object {
         const val ACTION_REWIND_10S = "action_rewind_10s"
         const val ACTION_FAST_FORWARD_10S = "action_fast_forward_10s"
         const val ACTION_SKIP_NEXT = "action_skip_next"
         const val ACTION_SKIP_PREVIOUS = "action_skip_previous"
+        const val ACTION_CAR_OFFSET_EARLIER = "action_car_offset_earlier"
+        const val ACTION_CAR_OFFSET_LATER = "action_car_offset_later"
 
         const val DEFAULT_ACTIONS =
             PlaybackStateCompat.ACTION_PLAY or

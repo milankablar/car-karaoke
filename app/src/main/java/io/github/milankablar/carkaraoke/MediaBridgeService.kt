@@ -22,6 +22,7 @@ class MediaBridgeService : MediaBrowserServiceCompat() {
 
     companion object {
         private const val ROOT_ID = "root"
+        private const val CONTENT_STYLE_GROUP_TITLE_HINT = "android.media.browse.CONTENT_STYLE_GROUP_TITLE_HINT"
         private var instance: MediaBridgeService? = null
 
         fun refreshLyrics() {
@@ -82,22 +83,35 @@ class MediaBridgeService : MediaBrowserServiceCompat() {
 
         if (parentId == "lyrics") {
             val state = context.appContainer().coordinator.state.value
-            val rows = io.github.milankablar.carkaraoke.karaoke.CarLyricsPresenter.window(state, SettingsManager.getCarLyricsOffsetMs(context))
-            val items = rows.mapIndexed { index, (active, text) ->
-                MediaBrowserCompat.MediaItem(
-                    MediaDescriptionCompat.Builder()
-                        .setMediaId("lyric:${state.track?.key}:$index")
-                        .setTitle(if (active) "▶ $text" else text)
-                        .setSubtitle(state.info?.title).build(),
-                    MediaBrowserCompat.MediaItem.FLAG_PLAYABLE
-                )
+            val snap = io.github.milankablar.carkaraoke.karaoke.CarLyricsPresenter.snapshot(
+                state,
+                SettingsManager.getCarLyricsOffsetMs(context)
+            )
+            val header = if (snap.headerSubtitle.isNotBlank()) {
+                "${snap.headerTitle} • ${snap.headerSubtitle}"
+            } else {
+                snap.headerTitle
+            }
+            val groupExtras = Bundle().apply {
+                putString(CONTENT_STYLE_GROUP_TITLE_HINT, header)
+            }
+            val items = snap.rows.mapIndexed { index, row ->
+                val mediaId = row.timeMs?.let { "lyric:$it" } ?: "lyric-row:$index"
+                val desc = MediaDescriptionCompat.Builder()
+                    .setMediaId(mediaId)
+                    .setTitle(if (row.active) "▶ ${row.text}" else row.text)
+                    .setExtras(groupExtras)
+                MediaBrowserCompat.MediaItem(desc.build(), MediaBrowserCompat.MediaItem.FLAG_PLAYABLE)
             }.toMutableList()
             if (items.isEmpty()) {
                 items.add(
                     MediaBrowserCompat.MediaItem(
                         MediaDescriptionCompat.Builder()
-                            .setMediaId("lyric-status").setTitle(state.resolution.status.name.lowercase().replace('_', ' '))
-                            .setSubtitle("Open Car Karaoke on your phone for lyric corrections").build(),
+                            .setMediaId("lyric-status")
+                            .setTitle(snap.statusMessage.ifBlank { "Play a song to begin" })
+                            .setSubtitle("Open Car Karaoke on your phone for lyric corrections")
+                            .setExtras(groupExtras)
+                            .build(),
                         MediaBrowserCompat.MediaItem.FLAG_PLAYABLE
                     )
                 )

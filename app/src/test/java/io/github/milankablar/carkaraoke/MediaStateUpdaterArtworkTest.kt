@@ -29,7 +29,40 @@ class MediaStateUpdaterArtworkTest {
         val prefs = mockk<SharedPreferences>(relaxed = true)
         every { context.getSharedPreferences(any(), any()) } returns prefs
         every { prefs.getBoolean("show_album_name", true) } returns true
+        every { prefs.getBoolean("car_show_artwork", false) } returns true
         updater = MediaStateUpdater(context)
+    }
+
+    @Test
+    fun `updateMetadata renders song title card by default instead of raw album art`() {
+        val prefs = mockk<SharedPreferences>(relaxed = true)
+        every { context.getSharedPreferences(any(), any()) } returns prefs
+        every { prefs.getBoolean("show_album_name", true) } returns true
+        every { prefs.getBoolean("car_show_artwork", false) } returns false
+
+        val albumArt = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+        val mediaInfo = MediaInfo(
+            title = "Song Title",
+            artist = "Artist Name",
+            album = "Album Name",
+            appName = "Spotify",
+            appPackageName = "com.spotify.music",
+            duration = 1000L,
+            isPlaying = true,
+            position = 0L,
+            albumArt = albumArt,
+            appIcon = null
+        )
+
+        invokeUpdateMetadata(mediaInfo)
+
+        val slot = slot<MediaMetadataCompat>()
+        verify { mediaSession.setMetadata(capture(slot)) }
+        val rendered = slot.captured.getBitmap(MediaMetadataCompat.METADATA_KEY_ART)
+        org.junit.Assert.assertNotNull(rendered)
+        org.junit.Assert.assertNotEquals(albumArt, rendered)
+        assertEquals(512, rendered!!.width)
+        assertEquals(512, rendered.height)
     }
 
     @Test

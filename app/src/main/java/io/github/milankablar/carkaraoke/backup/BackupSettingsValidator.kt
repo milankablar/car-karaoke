@@ -15,11 +15,14 @@ internal object BackupSettingsValidator {
         "show_source_app",
         "reduced_motion",
         "keep_screen_on",
-        "car_legacy_title"
+        "car_legacy_title",
+        "car_show_artwork"
     )
     private val strings = setOf("lrc_api_uri", "language_pref", "api_key", "lrc_api_auth_token")
     private val arrays = setOf("bridged_apps", "lyrics_providers", "lyrics_cleanup_rules")
     private val themes = setOf("System", "Light", "Dark", "Black")
+    private val carModes = setOf("lyric_first", "lyric_and_song", "song_and_lyric")
+    private val carCustomActions = setOf("seek", "timing")
 
     fun validate(source: JSONObject): JSONObject {
         val result = JSONObject()
@@ -55,6 +58,14 @@ internal object BackupSettingsValidator {
                         "Invalid car lyrics offset"
                     }
                     result.put(key, value.toLong())
+                }
+                "car_now_playing_mode" -> {
+                    require(value is String && value in carModes) { "Invalid car now playing mode" }
+                    result.put(key, value)
+                }
+                "car_custom_actions_mode" -> {
+                    require(value is String && value in carCustomActions) { "Invalid car custom actions mode" }
+                    result.put(key, value)
                 }
                 in arrays -> {
                     val array = when (value) {

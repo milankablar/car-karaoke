@@ -8,11 +8,17 @@ import io.github.milankablar.carkaraoke.diagnostics.DiagnosticLogger
 import io.github.milankablar.carkaraoke.diagnostics.DiagnosticModule
 
 object MediaControllerManager {
+    internal fun isSelfOrBridgePackage(packageName: String, selfPackage: String): Boolean = packageName == selfPackage ||
+        packageName == "io.github.milankablar.carkaraoke" ||
+        packageName.startsWith("io.github.milankablar.carkaraoke.") ||
+        packageName == "com.gululu.aamediamate" ||
+        packageName.startsWith("com.gululu.aamediamate.")
+
     fun getAllControllers(context: Context): List<MediaController> = try {
         val sessionManager = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as android.media.session.MediaSessionManager
         val component = ComponentName(context, MediaNotificationListener::class.java)
         val controllers = sessionManager.getActiveSessions(component)
-            .filter { it.packageName != context.packageName && Global.packageAllowed(context, it.packageName) }
+            .filter { !isSelfOrBridgePackage(it.packageName, context.packageName) && Global.packageAllowed(context, it.packageName) }
         DiagnosticLogger.debug(
             context,
             DiagnosticModule.MEDIA,

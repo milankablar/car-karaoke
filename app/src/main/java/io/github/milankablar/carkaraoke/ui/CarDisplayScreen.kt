@@ -1,13 +1,18 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+    androidx.compose.foundation.layout.ExperimentalLayoutApi::class
+)
 
 package io.github.milankablar.carkaraoke.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -35,7 +40,9 @@ internal fun CarDisplayScreen(
     onOpenArtwork: () -> Unit
 ) {
     val context = LocalContext.current
-    var legacy by remember { mutableStateOf(SettingsManager.getCarLegacyTitle(context)) }
+    var nowPlayingMode by remember { mutableStateOf(SettingsManager.getCarNowPlayingMode(context)) }
+    var showArtwork by remember { mutableStateOf(SettingsManager.getCarShowArtwork(context)) }
+    var actionsMode by remember { mutableStateOf(SettingsManager.getCarCustomActionsMode(context)) }
     var offset by remember { mutableLongStateOf(SettingsManager.getCarLyricsOffsetMs(context)) }
 
     Scaffold(
@@ -52,34 +59,79 @@ internal fun CarDisplayScreen(
         ) {
             Text("The same song. A second screen.", style = MaterialTheme.typography.headlineSmall)
             Text(
-                "Open Live lyrics in Car Karaoke on Android Auto for the moving three-line view. " +
-                    "Your car controls its layout and refresh behavior."
+                "Android Auto controls the Now Playing typography and layout. " +
+                    "Choose what appears in the main title and subtitle slots, or open Live lyrics for a three-line list.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            SettingsGroup("DISPLAY") {
+
+            SettingsGroup("NOW PLAYING") {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "lyric_first" to "3-line lyrics",
+                        "lyric_and_song" to "Current + Song",
+                        "song_and_lyric" to "Song + Current"
+                    ).forEach { (id, label) ->
+                        FilterChip(
+                            selected = nowPlayingMode == id,
+                            onClick = {
+                                nowPlayingMode = id
+                                SettingsManager.setCarNowPlayingMode(context, id)
+                                container.refreshCarDisplay()
+                            },
+                            label = { Text(label) }
+                        )
+                    }
+                }
+                Text(
+                    when (nowPlayingMode) {
+                        "lyric_first" -> "Main text shows current line; subtitle shows the next two lines while the right card displays song title and artist."
+                        "lyric_and_song" -> "Main text shows the current line; subtitle shows song title and artist."
+                        else -> "Main text shows the song title; subtitle shows the current line."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Lyrics in track title")
+                        Text("Use album artwork instead of song card")
                         Text(
-                            "Compatibility mode for displays that hide subtitles",
-                            style = MaterialTheme.typography.bodySmall
+                            "Off by default so the right card cleanly shows song title and artist",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Switch(
-                        checked = legacy,
+                        checked = showArtwork,
                         onCheckedChange = {
-                            legacy = it
-                            SettingsManager.setCarLegacyTitle(context, it)
+                            showArtwork = it
+                            SettingsManager.setCarShowArtwork(context, it)
                             container.refreshCarDisplay()
                         }
                     )
                 }
-                SettingLink("Artwork & media details", "Album art, source app and text", onOpenArtwork)
+                SettingLink("Metadata details", "Album name and source app labels", onOpenArtwork)
             }
-            SettingsGroup("CAR TIMING") {
+
+            SettingsGroup("CAR CONTROLS & TIMING") {
+                Text("Dashboard extra buttons", style = MaterialTheme.typography.titleMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("seek" to "Seek ±10s", "timing" to "Car sync ±250ms").forEach { (id, label) ->
+                        FilterChip(
+                            selected = actionsMode == id,
+                            onClick = {
+                                actionsMode = id
+                                SettingsManager.setCarCustomActionsMode(context, id)
+                                container.refreshCarDisplay()
+                            },
+                            label = { Text(label) }
+                        )
+                    }
+                }
                 Text("Display delay: $offset ms")
                 Text(
                     "Affects the car display only. Positive values show lyrics later.",
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
@@ -96,6 +148,15 @@ internal fun CarDisplayScreen(
                             container.refreshCarDisplay()
                         }
                     ) { Text("+100 ms") }
+                    if (offset != 0L) {
+                        TextButton(
+                            onClick = {
+                                offset = 0L
+                                SettingsManager.setCarLyricsOffsetMs(context, 0L)
+                                container.refreshCarDisplay()
+                            }
+                        ) { Text("Reset") }
+                    }
                 }
             }
         }

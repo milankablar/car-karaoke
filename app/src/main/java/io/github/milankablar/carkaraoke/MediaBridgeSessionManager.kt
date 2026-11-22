@@ -130,11 +130,21 @@ object MediaBridgeSessionManager {
         mediaStateUpdater?.clear(mediaSession!!)
         karaokeJob = runtimeScope.launch {
             coordinator.state
-                .map {
-                    Triple(
-                        CarLyricsPresenter.index(it, SettingsManager.getCarLyricsOffsetMs(appContext)),
-                        it.revision,
-                        it.track?.key to it.info
+                .map { state ->
+                    val carOffset = SettingsManager.getCarLyricsOffsetMs(appContext)
+                    val snap = CarLyricsPresenter.snapshot(state, carOffset)
+                    listOf(
+                        snap.headerTitle,
+                        snap.headerSubtitle,
+                        snap.previousLine,
+                        snap.currentLine,
+                        snap.nextLine,
+                        snap.afterNextLine,
+                        snap.hasLiveLyric,
+                        state.revision,
+                        state.track?.key,
+                        SettingsManager.getCarNowPlayingMode(appContext),
+                        SettingsManager.getCarShowArtwork(appContext)
                     )
                 }
                 .distinctUntilChanged()
@@ -145,16 +155,28 @@ object MediaBridgeSessionManager {
                     val session = mediaSession
                     if (info != null && session != null) {
                         val carOffset = SettingsManager.getCarLyricsOffsetMs(appContext)
-                        val legacyTitle = SettingsManager.getCarLegacyTitle(appContext)
-                        val index = CarLyricsPresenter.index(state, carOffset)
-                        val line = state.resolution.document.lines.getOrNull(index)?.text.orEmpty()
-                        val next = state.resolution.document.lines.getOrNull(index + 1)?.text.orEmpty()
-                        val displayTitle = if (legacyTitle) line.ifBlank { info.title } else info.title
+                        val mode = SettingsManager.getCarNowPlayingMode(appContext)
+                        val snap = CarLyricsPresenter.snapshot(state, carOffset)
+                        val titleArtist = if (info.artist.isNotBlank()) "${info.title} • ${info.artist}" else info.title
+                        val displayTitle = when (mode) {
+                            "lyric_first", "lyric_and_song" -> if (snap.hasLiveLyric) snap.currentLine else info.title
+                            else -> info.title
+                        }
+                        val displaySubtitle = when (mode) {
+                            "lyric_first" -> if (snap.hasLiveLyric) {
+                                formatUpcomingLines(snap.nextLine, snap.afterNextLine, titleArtist)
+                            } else {
+                                info.artist
+                            }
+                            "lyric_and_song" -> if (snap.hasLiveLyric) titleArtist else info.artist
+                            else -> if (snap.hasLiveLyric) snap.currentLine else info.artist
+                        }
+                        val displayDescription = if (snap.hasLiveLyric) snap.nextLine else titleArtist
                         val metadata = MediaMetadataCompat.Builder(session.controller.metadata)
                             .putString(MediaMetadataCompat.METADATA_KEY_TITLE, displayTitle)
                             .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_TITLE, displayTitle)
-                            .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_SUBTITLE, line.ifBlank { info.artist })
-                            .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_DESCRIPTION, next)
+                            .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_SUBTITLE, displaySubtitle)
+                            .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_DESCRIPTION, displayDescription)
                             .build()
                         session.setMetadata(metadata)
                     }
@@ -248,6 +270,24 @@ object MediaBridgeSessionManager {
     /** Coalesces notification and transport events on the service's main thread. */
     fun requestRefresh(reason: String, delayMs: Long = SOURCE_CALLBACK_REFRESH_DELAY_MS) {
         if (context != null) scheduleSourceRefresh(reason, delayMs)
+    }
+
+    internal fun formatUpcomingLines(nextLine: String, afterNextLine: String, fallback: String): String {
+        val first = ellipsizeSingleLine(nextLine.trim(), 34)
+        val second = ellipsizeSingleLine(afterNextLine.trim(), 34)
+        return when {
+            first.isNotEmpty() && second.isNotEmpty() -> "$first\n$second"
+            first.isNotEmpty() -> first
+            else -> fallback
+        }
+    }
+
+    private fun ellipsizeSingleLine(text: String, maxChars: Int): String {
+        if (text.length <= maxChars) return text
+        val cut = text.substring(0, maxChars - 1).trimEnd()
+        val lastSpace = cut.lastIndexOf(' ')
+        val trimmed = if (lastSpace >= maxChars / 2) cut.substring(0, lastSpace) else cut
+        return "$trimmed…"
     }
 
     internal fun isControllerTrusted(): Boolean {

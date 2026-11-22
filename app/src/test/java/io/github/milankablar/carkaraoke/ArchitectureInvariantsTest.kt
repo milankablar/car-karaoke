@@ -66,22 +66,28 @@ class ArchitectureInvariantsTest {
     }
 
     @Test
-    fun `main sources contain no legacy upstream package references`() {
+    fun `main sources contain no legacy upstream package or import declarations`() {
         val mainDir = File(repoRoot, "app/src/main")
+        val legacyKotlinRef = Regex("""^\s*(package|import)\s+com\.gululu\.aamediamate\b""")
         val violations = mutableListOf<String>()
 
         mainDir.walkTopDown()
             .filter { it.isFile && it.extension in setOf("kt", "java", "xml") }
             .forEach { file ->
                 file.readLines().forEachIndexed { index, line ->
-                    if ("com.gululu.aamediamate" in line) {
+                    val bad = if (file.extension == "xml") {
+                        "com.gululu.aamediamate" in line
+                    } else {
+                        legacyKotlinRef.containsMatchIn(line)
+                    }
+                    if (bad) {
                         violations += "${file.relativeTo(repoRoot)}:${index + 1}: $line"
                     }
                 }
             }
 
         assertTrue(
-            "Upstream package references must not reappear in app/src/main:\n${violations.joinToString("\n")}",
+            "Upstream package/import references must not reappear in app/src/main:\n${violations.joinToString("\n")}",
             violations.isEmpty()
         )
     }

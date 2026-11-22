@@ -31,14 +31,19 @@ class SettingsManagerPresentationTest {
         assertFalse(SettingsManager.getKeepScreenOn(context))
         assertEquals(0L, SettingsManager.getCarLyricsOffsetMs(context))
         assertFalse(SettingsManager.getCarLegacyTitle(context))
+        assertEquals("lyric_first", SettingsManager.getCarNowPlayingMode(context))
+        assertFalse(SettingsManager.getCarShowArtwork(context))
+        assertEquals("seek", SettingsManager.getCarCustomActionsMode(context))
 
         SettingsManager.setAppearanceTheme(context, "Invalid")
         SettingsManager.setLyricTextSizeSp(context, 99f)
         SettingsManager.setCarLyricsOffsetMs(context, -99_000L)
+        SettingsManager.setCarNowPlayingMode(context, "invalid")
 
         assertEquals("System", SettingsManager.getAppearanceTheme(context))
         assertEquals(40f, SettingsManager.getLyricTextSizeSp(context), 0.01f)
         assertEquals(-5000L, SettingsManager.getCarLyricsOffsetMs(context))
+        assertEquals("lyric_first", SettingsManager.getCarNowPlayingMode(context))
     }
 
     @Test
@@ -94,7 +99,9 @@ class SettingsManagerPresentationTest {
         val badPayloads = listOf(
             """{"appearance_theme":"Neon"}""",
             """{"lyric_text_size_sp":120}""",
-            """{"car_lyrics_offset_ms":10000}"""
+            """{"car_lyrics_offset_ms":10000}""",
+            """{"car_now_playing_mode":"bogus"}""",
+            """{"car_custom_actions_mode":"bogus"}"""
         )
         badPayloads.forEach { raw ->
             try {
