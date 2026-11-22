@@ -36,7 +36,6 @@ class BackupManagerTest {
             override fun getFilesDir(): File = internal
             override fun getCacheDir(): File = cache
         }
-        LyricCache.clearAllMemoryCache()
         context.getSharedPreferences("media_bridge_settings", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
@@ -160,7 +159,7 @@ class BackupManagerTest {
         File(transaction, "journal.json").writeText(
             JSONObject().put("directory", directory.canonicalPath).put("files", entries).toString()
         )
-        LyricCache.getLyricsDir(context)
+        LyricsStorage.getLyricsDir(context)
         assertEquals("original", File(directory, "a.lrt").readText())
         assertFalse(transaction.exists())
     }

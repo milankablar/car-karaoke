@@ -2,7 +2,6 @@ package io.github.milankablar.carkaraoke.backup
 
 import android.content.Context
 import io.github.milankablar.carkaraoke.SettingsManager
-import io.github.milankablar.carkaraoke.lyrics.LyricCache
 import io.github.milankablar.carkaraoke.lyrics.LyricsStorage
 import java.io.File
 import java.io.IOException
@@ -34,7 +33,6 @@ internal object BackupTransaction {
                 }
             }
             journal.optJSONObject("settings")?.let { SettingsManager.restoreBackupSnapshot(context, it) }
-            LyricCache.clearAllMemoryCache()
             LyricsStorage.revision++
         }
         if (!transaction.deleteRecursively()) throw IOException("Could not remove restore journal")
@@ -60,7 +58,6 @@ internal object BackupTransaction {
             staged.forEach { source -> LyricsStorage.write(File(lyricsDir, source.name), LyricsStorage.read(source)) }
             settings?.let { SettingsManager.importBackupSettings(context, it) }
             LyricsStorage.write(File(transaction, "committed"), "done")
-            LyricCache.clearAllMemoryCache()
             LyricsStorage.revision++
         } catch (e: Exception) {
             try {

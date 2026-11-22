@@ -80,7 +80,6 @@ dependencies {
     implementation(libs.androidx.media)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.opencc4j)
 
     testImplementation(libs.junit)
     testImplementation(libs.okhttp.mockwebserver)

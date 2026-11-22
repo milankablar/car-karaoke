@@ -20,6 +20,7 @@ class ArchitectureInvariantsTest {
     @Test
     fun `pure karaoke domain files do not import Android framework packages`() {
         val pureDomainFiles = listOf(
+            "karaoke/KaraokeCoordinator.kt",
             "karaoke/KaraokeModels.kt",
             "karaoke/EnhancedLrcParser.kt",
             "karaoke/CarLyricsPresenter.kt",
@@ -45,9 +46,9 @@ class ArchitectureInvariantsTest {
     }
 
     @Test
-    fun `ui layer does not import or instantiate OkHttp directly`() {
+    fun `ui layer does not access HTTP clients, candidate providers, or raw SharedPreferences directly`() {
         val uiDir = File(mainSrcRoot, "ui")
-        val forbidden = Regex("""\bokhttp3\b|\bOkHttpClient\b""")
+        val forbidden = Regex("""\bokhttp3\b|\bOkHttpClient\b|\bConfiguredCandidates\b|\bgetSharedPreferences\b""")
         val violations = mutableListOf<String>()
 
         uiDir.walkTopDown().filter { it.isFile && it.extension == "kt" }.forEach { file ->
@@ -59,7 +60,7 @@ class ArchitectureInvariantsTest {
         }
 
         assertTrue(
-            "UI files must delegate HTTP calls to repositories/providers:\n${violations.joinToString("\n")}",
+            "UI files must delegate HTTP, search, and preference access to AppContainer/SettingsManager:\n${violations.joinToString("\n")}",
             violations.isEmpty()
         )
     }

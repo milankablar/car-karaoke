@@ -14,14 +14,15 @@ import org.junit.Test
 class KaraokeUiTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
     private val info = MediaInfo("fixture.music", "Test player", "Open road", "Car Karaoke", "Original test lyrics", 120000, 4500, false, null, null, retrievedAtElapsedRealtimeMs = 1, mediaId = "fixture-1")
+    private val container get() = compose.activity.appContainer()
     private fun seed() {
-        compose.activity.getSharedPreferences("presentation", 0).edit().putString("theme", "Light").commit()
+        SettingsManager.setAppearanceTheme(compose.activity, "Light")
         runBlocking {
             io.github.milankablar.carkaraoke.lyrics.LyricsRepository.deleteLyrics(compose.activity, listOf(TrackIdentity.from(info).key))
-            KaraokeRuntime.repository.choose(TrackIdentity.from(info), LyricCandidate("fixture", "Test fixture", info.title, info.artist, info.album, info.duration, "[00:00]A little light on the horizon\n[00:04]Every mile becomes a melody\n[00:08]Let the open road sing along\n[00:12]We carry the music home"))
+            container.repository.choose(TrackIdentity.from(info), LyricCandidate("fixture", "Test fixture", info.title, info.artist, info.album, info.duration, "[00:00]A little light on the horizon\n[00:04]Every mile becomes a melody\n[00:08]Let the open road sing along\n[00:12]We carry the music home"))
         }
         compose.runOnIdle { MediaBridgeSessionManager.updateFromMediaInfo(info) }
-        compose.waitUntil(10000) { KaraokeRuntime.coordinator.state.value.resolution.status == LyricsStatus.SYNCED }
+        compose.waitUntil(10000) { container.coordinator.state.value.resolution.status == LyricsStatus.SYNCED }
     }
     private fun capture(name: String) {
         compose.waitForIdle()
@@ -35,11 +36,11 @@ class KaraokeUiTest {
     }
 
     @Test fun sharedLyricsAndCleanSettings() {
-        compose.activity.getSharedPreferences("presentation", 0).edit().putString("theme", "Light").commit()
+        SettingsManager.setAppearanceTheme(compose.activity, "Light")
         compose.activityRule.scenario.recreate()
         seed()
         compose.onNodeWithText("Every mile becomes a melody").assertIsDisplayed()
-        val state = KaraokeRuntime.coordinator.state.value
+        val state = container.coordinator.state.value
         assertEquals("Every mile becomes a melody", CarLyricsPresenter.window(state, 0).single { it.first }.second)
         capture("karaoke-light")
         compose.onNodeWithText("Settings", useUnmergedTree = true).performClick()
@@ -52,8 +53,8 @@ class KaraokeUiTest {
         capture("karaoke-dark")
         compose.onNodeWithText("Correct lyrics").performClick()
         compose.onNodeWithText("Later +250").performClick()
-        compose.waitUntil(5000) { KaraokeRuntime.coordinator.state.value.resolution.offsetMs == 250L }
-        assertEquals(250L, KaraokeRuntime.coordinator.state.value.resolution.offsetMs)
+        compose.waitUntil(5000) { container.coordinator.state.value.resolution.offsetMs == 250L }
+        assertEquals(250L, container.coordinator.state.value.resolution.offsetMs)
         capture("timing")
     }
 
@@ -62,7 +63,7 @@ class KaraokeUiTest {
         compose.runOnIdle { MediaBridgeSessionManager.acquire(compose.activity, "car-test") }
         compose.runOnIdle { MediaBridgeSessionManager.updateFromMediaInfo(info) }
         compose.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
-        assertNotNull(KaraokeRuntime.coordinator.state.value.track)
+        assertNotNull(container.coordinator.state.value.track)
         compose.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
         seed()
         compose.runOnIdle { compose.activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
@@ -71,7 +72,7 @@ class KaraokeUiTest {
         compose.onNodeWithText("Every mile becomes a melody").assertIsDisplayed()
         capture("karaoke-landscape")
         compose.runOnIdle { MediaBridgeSessionManager.relinquish("car-test") }
-        assertNotNull(KaraokeRuntime.coordinator.state.value.track)
+        assertNotNull(container.coordinator.state.value.track)
     }
 
     @Test fun browserServicePublishesSharedWindow() {

@@ -15,19 +15,19 @@
 
 Single Android module (`app/`) in Kotlin + Jetpack Compose (Material 3). Release package is `io.github.milankablar.carkaraoke`; debug builds append `.dev`.
 
-- **Android entrypoints:** `CarKaraokeApplication`, `MainActivity`, `MediaBridgeService` (Android Auto `MediaBrowserServiceCompat`), `MediaNotificationListener`.
+- **Android entrypoints & container:** `CarKaraokeApplication` (owns `AppContainer`), `MainActivity`, `MediaBridgeService` (Android Auto `MediaBrowserServiceCompat`), `MediaNotificationListener`.
 - **Playback & media bridge:** `MediaBridgeSessionManager`, `MediaControllerManager`, `MediaInformationRetriever`, `MediaStateUpdater`, `MediaBridgeMediaCallback`, `MediaClientValidator`.
-- **Karaoke core (`karaoke/`):** `KaraokeCoordinator` (shared `StateFlow<KaraokeState>`), `TrackIdentity`, `PlaybackClock`, `LyricMatcher`, `EnhancedLrcParser`, `CarLyricsPresenter`, `RecordingLyricsRepository`, `CandidateProvider`, `RefreshGate`.
-- **Phone UI (`ui/`):** `CarKaraokeApp` and feature screens.
-- **Storage, backup & diagnostics:** `SettingsManager`, `lyrics/`, `backup/`, `diagnostics/`.
+- **Karaoke core (`karaoke/`):** `KaraokeCoordinator` (pure Kotlin `StateFlow<KaraokeState>`), `TrackIdentity`, `PlaybackClock`, `LyricMatcher`, `EnhancedLrcParser`, `CarLyricsPresenter`, `RecordingLyricsRepository`, `CandidateProvider`, `RefreshGate`.
+- **Phone UI (`ui/`):** `CarKaraokeApp` (sealed `AppRoute` shell), `KaraokeScreen`, `SettingsHomeScreen`, `CorrectionScreen`, `PlayerSelectionScreen`, `CarDisplayScreen`, plus library/provider/backup/diagnostics screens.
+- **Storage, settings, backup & diagnostics:** `SettingsManager` (single typed preference store), `lyrics/` (`LyricsStorage`, `LyricsRepository`, `LrcFormat`, `LyricsCleanupManager`, `providers/`), `backup/`, `diagnostics/`.
 
 See [docs/architecture.md](docs/architecture.md), [docs/testing.md](docs/testing.md), and [docs/releases.md](docs/releases.md) for current design, test status, and release workflow details.
 
 ## Rules
 
 - **Verification gate:** Run `./scripts/check.sh` before finishing any change.
-- **Pure domain isolation:** Pure domain files (`KaraokeModels.kt`, `EnhancedLrcParser.kt`, `CarLyricsPresenter.kt`, `RefreshGate.kt`) must never import `android.*` (enforced by `ArchitectureInvariantsTest`).
-- **UI boundary:** `ui/` must never construct `OkHttpClient` or perform raw HTTP calls directly (enforced by `ArchitectureInvariantsTest`).
+- **Pure domain isolation:** Pure domain files (`KaraokeCoordinator.kt`, `KaraokeModels.kt`, `EnhancedLrcParser.kt`, `CarLyricsPresenter.kt`, `RefreshGate.kt`) must never import `android.*` or `androidx.*` (enforced by `ArchitectureInvariantsTest`).
+- **UI boundary:** `ui/` must never construct `OkHttpClient` or `ConfiguredCandidates`, or call `getSharedPreferences` directly—delegate to `AppContainer` and `SettingsManager` (enforced by `ArchitectureInvariantsTest`).
 - **Fork hygiene:** Never reintroduce upstream `com.gululu.aamediamate` references (enforced by `ArchitectureInvariantsTest`). Keep `upstream` read-only for fetching; always pass `--repo milankablar/car-karaoke` on `gh` mutations.
 - **Vehicle independence:** Never add vehicle-specific APIs, layouts, package checks, or timing assumptions.
 - **Dependency hygiene:** Declare all versions in `gradle/libs.versions.toml`; do not leave unused libraries in `app/build.gradle.kts`.

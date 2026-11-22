@@ -20,7 +20,7 @@ class RecordingRepositoryTest {
 
     @Before fun setup() {
         context = RuntimeEnvironment.getApplication()
-        LyricCache.getLyricsDir(context).deleteRecursively()
+        LyricsStorage.getLyricsDir(context).deleteRecursively()
     }
 
     @Test fun `manual selection remains pinned through forced refresh and keeps offset`() = runTest {
@@ -110,5 +110,21 @@ class RecordingRepositoryTest {
         json.put("plainLyrics", JSONObject.NULL).put("instrumental", true)
         assertTrue(provider.parse(json)!!.instrumental)
         assertEquals("", provider.parse(json)!!.content)
+    }
+
+    @Test fun `configured candidates apply cleanup rules to search query while preserving validation`() = runTest {
+        var queried: TrackIdentity? = null
+        val stub = object : CandidateProvider {
+            override suspend fun search(track: TrackIdentity): List<LyricCandidate> {
+                queried = track
+                return listOf(candidate.copy(title = "Upbeat", artist = "Green Day"))
+            }
+        }
+        val configured = ConfiguredCandidates(context, stub)
+        val input = track.copy(title = "Upbeat", artist = "Green Day • Lossless")
+        val results = configured.search(input)
+        assertEquals("Upbeat", queried?.title)
+        assertEquals("Green Day", queried?.artist)
+        assertEquals(1, results.size)
     }
 }

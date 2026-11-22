@@ -15,7 +15,6 @@ class MediaBridgeService : MediaBrowserServiceCompat() {
         val signature = SettingsManager.playbackSettingsSignature(this)
         if (SettingsManager.affectsPlayback(key) && signature != lastSettingsSignature) {
             lastSettingsSignature = signature
-            io.github.milankablar.carkaraoke.lyrics.LyricCache.clearAllMemoryCache()
             MediaBridgeSessionManager.refreshCurrentSession()
             refreshBrowserData()
         }
@@ -82,8 +81,8 @@ class MediaBridgeService : MediaBrowserServiceCompat() {
         val context = this.applicationContext
 
         if (parentId == "lyrics") {
-            val state = io.github.milankablar.carkaraoke.karaoke.KaraokeRuntime.coordinator.state.value
-            val rows = io.github.milankablar.carkaraoke.karaoke.CarLyricsPresenter.window(state, getSharedPreferences("presentation", 0).getLong("carOffset", 0))
+            val state = context.appContainer().coordinator.state.value
+            val rows = io.github.milankablar.carkaraoke.karaoke.CarLyricsPresenter.window(state, SettingsManager.getCarLyricsOffsetMs(context))
             val items = rows.mapIndexed { index, (active, text) ->
                 MediaBrowserCompat.MediaItem(
                     MediaDescriptionCompat.Builder()

@@ -14,6 +14,7 @@ import org.json.JSONObject
 
 object SettingsManager {
     private const val PREFS_NAME = "media_bridge_settings"
+    private const val LEGACY_PRESENTATION_PREFS = "presentation"
     private const val KEY_LYRICS_ENABLED = "lyrics_enabled"
     private const val KEY_API_KEY = "api_key"
     private const val KEY_SIMPLIFY = "simplify_chinese"
@@ -29,8 +30,61 @@ object SettingsManager {
     private const val KEY_SHOW_NEXT_LYRIC_LINE = "show_next_lyric_line"
     private const val KEY_SHOW_SOURCE_APP = "show_source_app"
     private const val KEY_LYRICS_TIMING_OFFSET = "lyrics_timing_offset"
+    private const val KEY_APPEARANCE_THEME = "appearance_theme"
+    private const val KEY_LYRIC_TEXT_SIZE_SP = "lyric_text_size_sp"
+    private const val KEY_REDUCED_MOTION = "reduced_motion"
+    private const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
+    private const val KEY_CAR_LYRICS_OFFSET_MS = "car_lyrics_offset_ms"
+    private const val KEY_CAR_LEGACY_TITLE = "car_legacy_title"
 
-    private fun getPrefs(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val APPEARANCE_THEMES = setOf("System", "Light", "Dark", "Black")
+    private val NON_PLAYBACK_KEYS = setOf(
+        KEY_LANGUAGE,
+        KEY_APPEARANCE_THEME,
+        KEY_LYRIC_TEXT_SIZE_SP,
+        KEY_REDUCED_MOTION,
+        KEY_KEEP_SCREEN_ON
+    )
+
+    private fun getPrefs(context: Context): android.content.SharedPreferences {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val legacy = context.getSharedPreferences(LEGACY_PRESENTATION_PREFS, Context.MODE_PRIVATE)
+        if (legacy.all.isNotEmpty()) {
+            migrateLegacyPresentationPrefs(prefs, legacy)
+        }
+        return prefs
+    }
+
+    @Synchronized
+    private fun migrateLegacyPresentationPrefs(
+        prefs: android.content.SharedPreferences,
+        legacy: android.content.SharedPreferences
+    ) {
+        if (legacy.all.isEmpty()) return
+        val editor = prefs.edit()
+        if (!prefs.contains(KEY_APPEARANCE_THEME) && legacy.contains("theme")) {
+            val theme = legacy.getString("theme", "System")
+            if (theme in APPEARANCE_THEMES) editor.putString(KEY_APPEARANCE_THEME, theme)
+        }
+        if (!prefs.contains(KEY_LYRIC_TEXT_SIZE_SP) && legacy.contains("lyricSize")) {
+            editor.putFloat(KEY_LYRIC_TEXT_SIZE_SP, legacy.getFloat("lyricSize", 28f).coerceIn(22f, 40f))
+        }
+        if (!prefs.contains(KEY_REDUCED_MOTION) && legacy.contains("reducedMotion")) {
+            editor.putBoolean(KEY_REDUCED_MOTION, legacy.getBoolean("reducedMotion", false))
+        }
+        if (!prefs.contains(KEY_KEEP_SCREEN_ON) && legacy.contains("keepScreenOn")) {
+            editor.putBoolean(KEY_KEEP_SCREEN_ON, legacy.getBoolean("keepScreenOn", false))
+        }
+        if (!prefs.contains(KEY_CAR_LYRICS_OFFSET_MS) && legacy.contains("carOffset")) {
+            editor.putLong(KEY_CAR_LYRICS_OFFSET_MS, legacy.getLong("carOffset", 0L).coerceIn(-5000L, 5000L))
+        }
+        if (!prefs.contains(KEY_CAR_LEGACY_TITLE) && legacy.contains("carLegacyTitle")) {
+            editor.putBoolean(KEY_CAR_LEGACY_TITLE, legacy.getBoolean("carLegacyTitle", false))
+        }
+        if (editor.commit()) {
+            legacy.edit().clear().commit()
+        }
+    }
 
     fun exportBackupSettings(context: Context, includeSecrets: Boolean): JSONObject {
         val prefs = getPrefs(context)
@@ -49,6 +103,12 @@ object SettingsManager {
             put(KEY_SHOW_NEXT_LYRIC_LINE, getShowNextLyricLine(context))
             put(KEY_SHOW_SOURCE_APP, getShowSourceApp(context))
             put(KEY_LYRICS_TIMING_OFFSET, getLyricsTimingOffset(context))
+            put(KEY_APPEARANCE_THEME, getAppearanceTheme(context))
+            put(KEY_LYRIC_TEXT_SIZE_SP, getLyricTextSizeSp(context).toDouble())
+            put(KEY_REDUCED_MOTION, getReducedMotion(context))
+            put(KEY_KEEP_SCREEN_ON, getKeepScreenOn(context))
+            put(KEY_CAR_LYRICS_OFFSET_MS, getCarLyricsOffsetMs(context))
+            put(KEY_CAR_LEGACY_TITLE, getCarLegacyTitle(context))
 
             if (includeSecrets) {
                 put(KEY_API_KEY, getApiKey(context))
@@ -76,6 +136,12 @@ object SettingsManager {
             settings.optBooleanOrNull(KEY_SHOW_NEXT_LYRIC_LINE)?.let { putBoolean(KEY_SHOW_NEXT_LYRIC_LINE, it) }
             settings.optBooleanOrNull(KEY_SHOW_SOURCE_APP)?.let { putBoolean(KEY_SHOW_SOURCE_APP, it) }
             settings.optIntOrNull(KEY_LYRICS_TIMING_OFFSET)?.let { putInt(KEY_LYRICS_TIMING_OFFSET, it) }
+            settings.optStringOrNull(KEY_APPEARANCE_THEME)?.let { putString(KEY_APPEARANCE_THEME, it) }
+            settings.optFloatOrNull(KEY_LYRIC_TEXT_SIZE_SP)?.let { putFloat(KEY_LYRIC_TEXT_SIZE_SP, it) }
+            settings.optBooleanOrNull(KEY_REDUCED_MOTION)?.let { putBoolean(KEY_REDUCED_MOTION, it) }
+            settings.optBooleanOrNull(KEY_KEEP_SCREEN_ON)?.let { putBoolean(KEY_KEEP_SCREEN_ON, it) }
+            settings.optLongOrNull(KEY_CAR_LYRICS_OFFSET_MS)?.let { putLong(KEY_CAR_LYRICS_OFFSET_MS, it) }
+            settings.optBooleanOrNull(KEY_CAR_LEGACY_TITLE)?.let { putBoolean(KEY_CAR_LEGACY_TITLE, it) }
             settings.optStringOrNull(KEY_API_KEY)?.let { putString(KEY_API_KEY, it) }
             settings.optStringOrNull(KEY_LRC_API_AUTH_TOKEN)?.let { putString(KEY_LRC_API_AUTH_TOKEN, it) }
         }
@@ -91,6 +157,8 @@ object SettingsManager {
                 is Boolean -> editor.putBoolean(key, value)
                 is Int -> editor.putInt(key, value)
                 is Long -> editor.putLong(key, value)
+                is Float -> editor.putFloat(key, value)
+                is Double -> editor.putFloat(key, value.toFloat())
                 is String -> editor.putString(key, value)
                 else -> throw IllegalArgumentException("Invalid preference snapshot")
             }
@@ -109,14 +177,54 @@ object SettingsManager {
         getPrefs(context).unregisterOnSharedPreferenceChangeListener(listener)
     }
 
-    internal fun affectsPlayback(key: String?): Boolean = key != KEY_LANGUAGE
+    internal fun affectsPlayback(key: String?): Boolean = key !in NON_PLAYBACK_KEYS
 
     internal fun playbackSettingsSignature(context: Context): String {
-        val settings = getPrefs(context).all.toSortedMap().filterKeys { it != KEY_BRIDGED_APPS && it != KEY_LANGUAGE }
+        val settings = getPrefs(context).all.toSortedMap().filterKeys { it != KEY_BRIDGED_APPS && it !in NON_PLAYBACK_KEYS }
         val apps = getBridgedApps(context).sortedBy { it.packageName }.map {
             listOf(it.packageName, it.lyricsEnabled, it.headUnitControlEnabled, it.swapRewindFastForward)
         }
         return settings.toString() + apps.toString()
+    }
+
+    fun getAppearanceTheme(context: Context): String {
+        val stored = getPrefs(context).getString(KEY_APPEARANCE_THEME, "System")
+        return if (stored in APPEARANCE_THEMES) stored!! else "System"
+    }
+
+    fun setAppearanceTheme(context: Context, theme: String) {
+        val normalized = if (theme in APPEARANCE_THEMES) theme else "System"
+        getPrefs(context).edit { putString(KEY_APPEARANCE_THEME, normalized) }
+    }
+
+    fun getLyricTextSizeSp(context: Context): Float = getPrefs(context).getFloat(KEY_LYRIC_TEXT_SIZE_SP, 28f).coerceIn(22f, 40f)
+
+    fun setLyricTextSizeSp(context: Context, sizeSp: Float) {
+        getPrefs(context).edit { putFloat(KEY_LYRIC_TEXT_SIZE_SP, sizeSp.coerceIn(22f, 40f)) }
+    }
+
+    fun getReducedMotion(context: Context): Boolean = getPrefs(context).getBoolean(KEY_REDUCED_MOTION, false)
+
+    fun setReducedMotion(context: Context, enabled: Boolean) {
+        getPrefs(context).edit { putBoolean(KEY_REDUCED_MOTION, enabled) }
+    }
+
+    fun getKeepScreenOn(context: Context): Boolean = getPrefs(context).getBoolean(KEY_KEEP_SCREEN_ON, false)
+
+    fun setKeepScreenOn(context: Context, enabled: Boolean) {
+        getPrefs(context).edit { putBoolean(KEY_KEEP_SCREEN_ON, enabled) }
+    }
+
+    fun getCarLyricsOffsetMs(context: Context): Long = getPrefs(context).getLong(KEY_CAR_LYRICS_OFFSET_MS, 0L).coerceIn(-5000L, 5000L)
+
+    fun setCarLyricsOffsetMs(context: Context, offsetMs: Long) {
+        getPrefs(context).edit { putLong(KEY_CAR_LYRICS_OFFSET_MS, offsetMs.coerceIn(-5000L, 5000L)) }
+    }
+
+    fun getCarLegacyTitle(context: Context): Boolean = getPrefs(context).getBoolean(KEY_CAR_LEGACY_TITLE, false)
+
+    fun setCarLegacyTitle(context: Context, enabled: Boolean) {
+        getPrefs(context).edit { putBoolean(KEY_CAR_LEGACY_TITLE, enabled) }
     }
 
     private fun safeArray(text: String): JSONArray = runCatching { JSONArray(text) }.getOrDefault(JSONArray())
@@ -542,6 +650,10 @@ object SettingsManager {
     private fun JSONObject.optBooleanOrNull(key: String): Boolean? = if (has(key) && !isNull(key)) optBoolean(key) else null
 
     private fun JSONObject.optIntOrNull(key: String): Int? = if (has(key) && !isNull(key)) optInt(key) else null
+
+    private fun JSONObject.optLongOrNull(key: String): Long? = if (has(key) && !isNull(key)) optLong(key) else null
+
+    private fun JSONObject.optFloatOrNull(key: String): Float? = if (has(key) && !isNull(key)) optDouble(key).toFloat() else null
 
     private fun JSONObject.optStringOrNull(key: String): String? = if (has(key) && !isNull(key)) optString(key, "") else null
 

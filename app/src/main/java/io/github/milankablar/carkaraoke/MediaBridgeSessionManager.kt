@@ -34,7 +34,6 @@ object MediaBridgeSessionManager {
     }
     private var mediaSession: MediaSessionCompat? = null
     private var mediaStateUpdater: MediaStateUpdater? = null
-    private var lyricDisplayManager: LyricDisplayManager? = null
     private var currentMediaInfo: MediaInfo? = null
     private var browserErrorActive = false
     private var mediaInfoListener: ((MediaInfo?) -> Unit)? = null
@@ -117,7 +116,7 @@ object MediaBridgeSessionManager {
         val appContext = context.applicationContext
         this.context = appContext
         mediaStateUpdater = MediaStateUpdater(appContext)
-        KaraokeRuntime.initialize(appContext)
+        val coordinator = appContext.appContainer().coordinator
 
         mediaSession = MediaSessionCompat(appContext, "MediaBridgeSession").apply {
             setCallback(MediaBridgeMediaCallback(appContext))
@@ -130,25 +129,37 @@ object MediaBridgeSessionManager {
 
         mediaStateUpdater?.clear(mediaSession!!)
         karaokeJob = runtimeScope.launch {
-            KaraokeRuntime.coordinator.state.map { Triple(CarLyricsPresenter.index(it, appContext.getSharedPreferences("presentation", 0).getLong("carOffset", 0)), it.revision, it.track?.key to it.info) }.distinctUntilChanged().sample(300).collect {
-                val state = KaraokeRuntime.coordinator.state.value
-                val info = state.info
-                val session = mediaSession
-                if (info != null && session != null) {
-                    val prefs = appContext.getSharedPreferences("presentation", 0)
-                    val index = CarLyricsPresenter.index(state, prefs.getLong("carOffset", 0))
-                    val line = state.resolution.document.lines.getOrNull(index)?.text.orEmpty()
-                    val next = state.resolution.document.lines.getOrNull(index + 1)?.text.orEmpty()
-                    val metadata = MediaMetadataCompat.Builder(session.controller.metadata)
-                        .putString(MediaMetadataCompat.METADATA_KEY_TITLE, if (prefs.getBoolean("carLegacyTitle", false)) line.ifBlank { info.title } else info.title)
-                        .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_TITLE, if (prefs.getBoolean("carLegacyTitle", false)) line.ifBlank { info.title } else info.title)
-                        .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_SUBTITLE, line.ifBlank { info.artist })
-                        .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_DESCRIPTION, next)
-                        .build()
-                    session.setMetadata(metadata)
+            coordinator.state
+                .map {
+                    Triple(
+                        CarLyricsPresenter.index(it, SettingsManager.getCarLyricsOffsetMs(appContext)),
+                        it.revision,
+                        it.track?.key to it.info
+                    )
                 }
-                MediaBridgeService.refreshLyrics()
-            }
+                .distinctUntilChanged()
+                .sample(300)
+                .collect {
+                    val state = coordinator.state.value
+                    val info = state.info
+                    val session = mediaSession
+                    if (info != null && session != null) {
+                        val carOffset = SettingsManager.getCarLyricsOffsetMs(appContext)
+                        val legacyTitle = SettingsManager.getCarLegacyTitle(appContext)
+                        val index = CarLyricsPresenter.index(state, carOffset)
+                        val line = state.resolution.document.lines.getOrNull(index)?.text.orEmpty()
+                        val next = state.resolution.document.lines.getOrNull(index + 1)?.text.orEmpty()
+                        val displayTitle = if (legacyTitle) line.ifBlank { info.title } else info.title
+                        val metadata = MediaMetadataCompat.Builder(session.controller.metadata)
+                            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, displayTitle)
+                            .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_TITLE, displayTitle)
+                            .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_SUBTITLE, line.ifBlank { info.artist })
+                            .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_DESCRIPTION, next)
+                            .build()
+                        session.setMetadata(metadata)
+                    }
+                    MediaBridgeService.refreshLyrics()
+                }
         }
         Log.d("MediaBridge", "✅ MediaSession initialized.")
         DiagnosticLogger.info(appContext, DiagnosticModule.MEDIA, "MediaSession initialized")
@@ -175,7 +186,7 @@ object MediaBridgeSessionManager {
             stopObservingSourceController()
             clearStalePositionOverride()
             mediaStateUpdater?.clear(session)
-            KaraokeRuntime.coordinator.update(null)
+            ctx.appContainer().coordinator.update(null)
             mediaInfoListener?.invoke(null)
             currentMediaInfo = null // Ensure we don't hold onto disallowed info
             browserErrorActive = false
@@ -208,7 +219,7 @@ object MediaBridgeSessionManager {
         )
 
         mediaStateUpdater?.update(session, normalizedInfo)
-        KaraokeRuntime.coordinator.update(normalizedInfo, forceLyricsResync)
+        ctx.appContainer().coordinator.update(normalizedInfo, forceLyricsResync)
 
         mediaInfoListener?.invoke(normalizedInfo)
         scheduleEndOfMediaRefresh(normalizedInfo)
@@ -219,12 +230,10 @@ object MediaBridgeSessionManager {
     fun release() {
         karaokeJob?.cancel()
         karaokeJob = null
-        KaraokeRuntime.coordinator.update(null)
+        context?.appContainer()?.coordinator?.update(null)
         cancelPendingMediaRefreshes()
         stopObservingSourceController()
         clearStalePositionOverride()
-        lyricDisplayManager?.close()
-        lyricDisplayManager = null
         mediaSession?.setCallback(null)
         mediaSession?.release()
         mediaSession = null

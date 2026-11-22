@@ -12,10 +12,14 @@ internal object BackupSettingsValidator {
         "combine_app_icon_and_album_art",
         "show_album_name",
         "show_next_lyric_line",
-        "show_source_app"
+        "show_source_app",
+        "reduced_motion",
+        "keep_screen_on",
+        "car_legacy_title"
     )
     private val strings = setOf("lrc_api_uri", "language_pref", "api_key", "lrc_api_auth_token")
     private val arrays = setOf("bridged_apps", "lyrics_providers", "lyrics_cleanup_rules")
+    private val themes = setOf("System", "Light", "Dark", "Black")
 
     fun validate(source: JSONObject): JSONObject {
         val result = JSONObject()
@@ -35,6 +39,22 @@ internal object BackupSettingsValidator {
                         "Invalid lyric timing offset"
                     }
                     result.put(key, value.toInt())
+                }
+                "appearance_theme" -> {
+                    require(value is String && value in themes) { "Invalid appearance theme" }
+                    result.put(key, value)
+                }
+                "lyric_text_size_sp" -> {
+                    require(value is Number && value.toDouble().isFinite() && value.toDouble() in 22.0..40.0) {
+                        "Invalid lyric text size"
+                    }
+                    result.put(key, value.toDouble())
+                }
+                "car_lyrics_offset_ms" -> {
+                    require(value is Number && value.toDouble() == value.toLong().toDouble() && value.toLong() in -5000L..5000L) {
+                        "Invalid car lyrics offset"
+                    }
+                    result.put(key, value.toLong())
                 }
                 in arrays -> {
                     val array = when (value) {

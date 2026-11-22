@@ -23,13 +23,11 @@ class LyricsRepositorySortTest {
         tempDir = java.nio.file.Files.createTempDirectory("lyrics_test").toFile()
         every { context.getExternalFilesDir("lyrics") } returns tempDir
         every { context.filesDir } returns tempDir
-        LyricCache.clearAllMemoryCache()
     }
 
     @After
     fun tearDown() {
         tempDir.deleteRecursively()
-        LyricCache.clearAllMemoryCache()
     }
 
     @Test

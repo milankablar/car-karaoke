@@ -27,7 +27,6 @@ class LyricsRepositoryTest {
             override fun getExternalFilesDir(type: String?): File = directory
             override fun getFilesDir(): File = internal
         }
-        LyricCache.clearAllMemoryCache()
     }
 
     @Test fun emptyDirectory() = runTest {

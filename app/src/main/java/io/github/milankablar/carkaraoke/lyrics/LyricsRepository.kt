@@ -34,7 +34,7 @@ object LyricsRepository {
 
     suspend fun getAllLyrics(context: Context): List<LyricsEntry> = withContext(Dispatchers.IO) {
         LyricsStorage.mutex.withLock {
-            LyricCache.getLyricsDir(context).listFiles().orEmpty()
+            LyricsStorage.getLyricsDir(context).listFiles().orEmpty()
                 .filter { it.isFile && it.name.endsWith(".lrt") }
                 .map { file ->
                     val key = file.name.removeSuffix(".lrt")
@@ -51,7 +51,6 @@ object LyricsRepository {
                     val file = LyricsStorage.file(context, key, extension)
                     if (file.exists() && !file.delete()) throw IOException("Could not delete lyrics")
                 }
-                LyricCache.clearMemoryCache(key)
             }
             LyricsStorage.revision++
         }
@@ -70,7 +69,6 @@ object LyricsRepository {
             val metadata = LyricsStorage.metadata(context, key).put("manual", true).put("contentHash", LyricsStorage.contentHash(content))
             LyricsStorage.write(LyricsStorage.file(context, key, "json"), metadata.toString())
             LyricsStorage.write(LyricsStorage.file(context, key), content)
-            LyricCache.clearMemoryCache(key)
             LyricsStorage.revision++
         }
         _lyricsUpdatedFlow.tryEmit(ALL_LYRICS)
@@ -78,7 +76,6 @@ object LyricsRepository {
 
     suspend fun notifyLyricsUpdated(key: String) {
         LyricsStorage.mutex.withLock {
-            LyricCache.clearMemoryCache(key)
             LyricsStorage.revision++
         }
         _lyricsUpdatedFlow.tryEmit(ALL_LYRICS)
@@ -93,7 +90,6 @@ object LyricsRepository {
                     val metadata = LyricsStorage.metadata(context, key).put("manual", true).put("contentHash", LyricsStorage.contentHash(shifted))
                     LyricsStorage.write(LyricsStorage.file(context, key, "json"), metadata.toString())
                     LyricsStorage.write(file, shifted)
-                    LyricCache.clearMemoryCache(key)
                 }
             }
             LyricsStorage.revision++

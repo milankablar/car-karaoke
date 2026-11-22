@@ -5,7 +5,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import io.github.milankablar.carkaraoke.SettingsManager
-import io.github.milankablar.carkaraoke.lyrics.LyricCache
 import io.github.milankablar.carkaraoke.lyrics.LyricsRepository
 import io.github.milankablar.carkaraoke.lyrics.LyricsStorage
 import java.io.BufferedInputStream
@@ -203,7 +202,7 @@ object BackupManager {
                 LyricsStorage.mutex.withLock {
                     BackupTransaction.commit(
                         context,
-                        LyricCache.getLyricsDir(context),
+                        LyricsStorage.getLyricsDir(context),
                         if (restoreLyrics) stagedFiles else emptyList(),
                         if (restoreSettings) settings else null
                     )
@@ -242,7 +241,7 @@ object BackupManager {
     }
 
     private fun getNonEmptyLyricsFiles(context: Context): List<File> {
-        val lyricsDir = LyricCache.getLyricsDir(context)
+        val lyricsDir = LyricsStorage.getLyricsDir(context)
         return lyricsDir.listFiles()
             ?.filter { it.isFile && it.name.endsWith(".lrt") && it.length() > 0L }
             ?.sortedBy { it.name.lowercase(Locale.US) }

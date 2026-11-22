@@ -23,9 +23,16 @@ internal object LyricsStorage {
         return "v2_" + hash.joinToString("") { "%02x".format(it) }
     }
 
+    fun getLyricsDir(context: Context): File {
+        val dir = context.getExternalFilesDir("lyrics") ?: File(context.filesDir, "lyrics")
+        if (!dir.isDirectory && !dir.mkdirs()) throw IOException("Lyrics storage is unavailable")
+        io.github.milankablar.carkaraoke.backup.BackupTransaction.recover(context, dir)
+        return dir
+    }
+
     fun file(context: Context, key: String, extension: String = "lrt"): File {
         require(isSafeKey(key)) { "Invalid lyric key" }
-        return File(LyricCache.getLyricsDir(context), "$key.$extension")
+        return File(getLyricsDir(context), "$key.$extension")
     }
 
     fun isSafeKey(key: String): Boolean = key.isNotBlank() &&
