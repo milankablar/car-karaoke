@@ -462,7 +462,8 @@ object MediaBridgeSessionManager {
     ): Boolean {
         if (previousInfo == null || isSameMedia(previousInfo, info)) return false
         if (previousInfo.appPackageName != info.appPackageName) return false
-        if (previousInfo.title == info.title && previousInfo.artist == info.artist &&
+        if (previousInfo.title == info.title &&
+            previousInfo.artist == info.artist &&
             (previousInfo.mediaId.isNullOrBlank() || info.mediaId.isNullOrBlank())
         ) {
             return false
@@ -516,7 +517,8 @@ object MediaBridgeSessionManager {
         stalePositionRecheckCount = 0
     }
 
-    private fun isSameMedia(first: MediaInfo, second: MediaInfo): Boolean = first.appPackageName == second.appPackageName && first.title.trim() == second.title.trim() &&
+    private fun isSameMedia(first: MediaInfo, second: MediaInfo): Boolean = first.appPackageName == second.appPackageName &&
+        first.title.trim() == second.title.trim() &&
         first.artist.trim() == second.artist.trim() &&
         (first.mediaId.isNullOrBlank() || second.mediaId.isNullOrBlank() || first.mediaId == second.mediaId)
 

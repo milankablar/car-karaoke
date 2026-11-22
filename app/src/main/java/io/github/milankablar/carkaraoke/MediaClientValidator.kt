@@ -20,8 +20,9 @@ internal object MediaClientValidator {
         if (uid == Process.myUid()) return@runCatching true
         val user = MediaSessionManager.RemoteUserInfo(packageName, -1, uid)
         if (MediaSessionManager.getSessionManager(context).isTrustedForMediaControl(user)) return@runCatching true
-        packageName == "com.google.android.projection.gearhead" && autoCertificates.any { certificate ->
-            context.packageManager.hasSigningCertificate(packageName, certificate, PackageManager.CERT_INPUT_SHA256)
-        }
+        packageName == "com.google.android.projection.gearhead" &&
+            autoCertificates.any { certificate ->
+                context.packageManager.hasSigningCertificate(packageName, certificate, PackageManager.CERT_INPUT_SHA256)
+            }
     }.getOrDefault(false)
 }

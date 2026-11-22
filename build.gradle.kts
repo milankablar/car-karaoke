@@ -8,6 +8,6 @@ plugins {
 spotless {
     kotlin {
         target("app/src/**/*.kt")
-        ktlint("1.5.0")
+        ktlint("1.5.0").setEditorConfigPath("$rootDir/.editorconfig")
     }
 }
